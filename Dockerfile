@@ -34,6 +34,11 @@ RUN chmod +x /usr/bin/tini
 
 RUN pip install --upgrade jupyter_http_over_ws>=0.0.7 && jupyter serverextension enable --py jupyter_http_over_ws
 
+# build folders
+RUN mkdir /workspace/mlflow
+RUN mkdir /workspace/tensorboard
+
+#logger variables
 ENV MLFLOW_TRACKING_URI=file:///workspace/mlflow
 ENV TENSORBOARD_LOG_DIR=/workspace/tensorboard
 

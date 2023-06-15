@@ -2,5 +2,6 @@ NN_data/*
 images/*
 models/*
 mlflow/*
+tensorboard/*
 supervisord.log
 supervisord.pid
