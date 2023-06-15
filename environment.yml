@@ -19,3 +19,5 @@ dependencies:
     - shapely
     - scikit-image
     - torchsummary
+    - mlflow
+    - tensorboard

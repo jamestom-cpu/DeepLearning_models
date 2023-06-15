@@ -1,3 +1,6 @@
 NN_data/*
 images/*
 models/*
+mlflow/*
+supervisord.log
+supervisord.pid

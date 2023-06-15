@@ -34,14 +34,13 @@ RUN chmod +x /usr/bin/tini
 
 RUN pip install --upgrade jupyter_http_over_ws>=0.0.7 && jupyter serverextension enable --py jupyter_http_over_ws
 
+ENV MLFLOW_TRACKING_URI=file:///workspace/mlflow
+ENV TENSORBOARD_LOG_DIR=/workspace/tensorboard
 
-RUN pip install mlflow
-RUN mkdir -m a=rw /mlflow
-ENV MLFLOW_TRACKING_URI = /mlflow
 
 EXPOSE 8888
 EXPOSE 5000
-
+EXPOSE 6006
 
 # Create a Conda environment named "EM+" and clone from the base environment
 RUN conda create --name EM+ --clone base
@@ -52,9 +51,14 @@ SHELL ["conda", "run", "-n", "EM+", "/bin/bash", "-c"]
 # Update the "EM+" environment with packages from environment.yml
 RUN conda env update --file environment.yml --prune
 
+
+RUN apt-get update && apt-get install -y supervisor
+
 # Set the default command to launch Jupyter Notebook
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["conda", "run", "-n", "EM+", "jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser"]
+
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+CMD ["/usr/bin/supervisord"]
 
 # # Create and activate a Conda environment
 # RUN conda env create --file environment.yml && \
