@@ -1,0 +1,21 @@
+name: EM+
+channels:
+  - default
+dependencies:
+  # - python=3.11.*
+  - pip
+  - pip:
+    - numpy
+    - pandas
+    - seaborn
+    - scipy
+    - scikit-learn
+    - matplotlib
+    - pyaedt
+    - h5py
+    - ipykernel
+    - attrs
+    - moviepy
+    - shapely
+    - scikit-image
+    - torchsummary

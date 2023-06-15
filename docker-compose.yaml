@@ -1,0 +1,29 @@
+version: "3.6"
+services:
+  pytorch-notebook:
+    build: .
+    image: tm95mon/pytorch2:latest
+    container_name: pytorch_notebook
+    ports: 
+      - 8888:8888
+      - 5000:5000
+    volumes: 
+      - "$PWD:/workspace"
+    command: 
+      bash -c "jupyter notebook --allow-root --port=8888 --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.allow_remote_access=true --NotebookApp.allow_origin='https://colab.research.google.com'"
+    restart: always
+    environment:
+      - GRANT_SUDO=yes
+      - JUPYTER_TOKEN=letmein
+
+    user: root
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
