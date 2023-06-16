@@ -9,6 +9,8 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 from pprint import pprint
+
+
 plt.switch_backend('TkAgg')
 
 
@@ -22,7 +24,7 @@ os.environ["MLFLOW_TRACKING_URI"] = "mlflow"
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
 from my_packages.neural_network.data_generators.iterator import DataIterator
 from my_packages.neural_network.model.model_trainer import Trainer
-from my_packages.neural_network.model.CNN_base import CNN_Base
+from my_packages.neural_network.model.CNN_base import Model_Base
 
 # torch import 
 import torch
@@ -115,7 +117,7 @@ print("train_dataset size: ", len(train_dataset))
 print("val_dataset size: ", len(val_dataset))
 
 ## Define the Model Structure
-class CNN(CNN_Base):
+class CNN(Model_Base):
     def __init__(self, in_shape, out_shape, conv_size1=32, conv_size2=64, linear_size1 = 128, loss_fn=F.mse_loss):
         
         self.in_shape = in_shape
@@ -153,14 +155,7 @@ class CNN(CNN_Base):
         out = self.unflatten(out)
         return out
     
-    def predict(self, inputs: np.ndarray):
-        if isinstance(inputs, np.ndarray):
-            if inputs.ndim == 3:
-                inputs = np.expand_dims(inputs, axis=0)
-            inputs = torch.from_numpy(inputs).float()
-        return self(inputs).detach().numpy()
-    
-    
+    # overwrite
     def print_summary(self, device = "cpu"):
         return summary(self, input_size=self.in_shape, device=device)
 
@@ -223,7 +218,8 @@ trainer = Trainer(
     log_gradient=["conv1"], log_weights=[], parameters_of_interest={
         "conv_layer1_size": conv_layer1_size,
         "conv_layer2_size": conv_layer2_size,
-    }
+    },
+    log_mlflow=True, log_tensorboard=True
     )
 
 
@@ -238,5 +234,6 @@ if not os.path.exists(model_dir):
 
 
 history = trainer.fit(n_iterations, train_dl, val_dl)
+
 # temp save of the model
-# torch.save(model.state_dict(), os.path.join(model_dir, "temp.pt"))
+torch.save(model.state_dict(), os.path.join(model_dir, "temp.pt"))

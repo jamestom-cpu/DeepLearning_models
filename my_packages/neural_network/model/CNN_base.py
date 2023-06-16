@@ -1,10 +1,11 @@
 import torch
 from torch import nn, optim
 import torch.nn.functional as F
+from torchsummary import summary
 
-class CNN_Base(nn.Module):
+class Model_Base(nn.Module):
     def __init__(self, loss_fn=F.mse_loss, *args, **kwargs):
-        super(CNN_Base, self).__init__()
+        super(Model_Base, self).__init__()
         self.loss_fn = loss_fn
 
 
@@ -34,10 +35,15 @@ class CNN_Base(nn.Module):
             result['train_loss'],  
             result['val_loss'], 
             result['val_acc']))
+        
     def evaluate(self, val_loader):
         self.eval() # set to evaluation mode
         outputs = [self.validation_step(batch) for batch in val_loader]
         return self.validation_epoch_end(outputs)
+    
+    def print_summary(self, in_shape, device = "cpu"):
+        return summary(self, input_size=in_shape, device=device)
+
     
     @staticmethod
     def _accuracy(out, targets, thresh=0.5):
