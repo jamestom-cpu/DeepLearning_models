@@ -20,15 +20,18 @@ class Trainer:
             self, model, opt_func=torch.optim.SGD, 
             lr=0.01, patience=7, scheduler_kwargs={}, 
             model_dir="models", 
-            tensorboard_dir="/workspace/tensorboard",
-            run_name=None,
+            log_mlflow=True,
+            log_tensorboard=True,
             experiment_name="My Experiment",
+            run_name=None,
+            print_every_n_epochs=3,
             log_gradient: Iterable[str]=[], 
             log_weights: Iterable[str]=[],
             parameters_of_interest: dict={},
+            save_models_to_mlflow=True,
             ):
-        self.experiment_name = experiment_name
-        self.run_name = run_name
+        
+        self.print_every_n_epochs = print_every_n_epochs
         self.model = model
         self.history = []
         self.lr = lr
@@ -37,7 +40,7 @@ class Trainer:
         self.model_dir = model_dir
 
         self.early_stopping = EarlyStopping(patience=patience, path=os.path.join(self.model_dir, "checkpoint.pth"))
-        self.init_optimizer_scheduler(**scheduler_kwargs)
+        self._init_optimizer_scheduler(**scheduler_kwargs)
         
         self.config = dict(
             lr=self.lr,
@@ -48,33 +51,54 @@ class Trainer:
 
         self.config.update(parameters_of_interest)
 
-        
+
         # setup mlflow logging
-        # self.experiment_id = mlflow.create_experiment("My Experiment")
+        self.experiment_name = experiment_name
+        self.run_name = run_name
+        # chose which to log
+        self.log_mlflow = log_mlflow
+        self.log_tensorboard = log_tensorboard
+        # save each model to mlflow
+        self.save_models_to_mlflow = save_models_to_mlflow
+
+
+        #logging directories 
+        self.mlflow_dir = os.path.join("/workspace", os.environ["MLFLOW_TRACKING_URI"])
+        self.tensorboard_dir = os.environ["TENSORBOARD_LOG_DIR"]
+
+        self.log_gradient = log_gradient
+        self.log_weights = log_weights
+
+        if self.log_mlflow:
+            self._setup_mlflow_log()
+        if self.log_tensorboard:
+            self._setup_tensorboard_log()
+
+        
+
+    def _setup_tensorboard_log(self):
+        # tensorboard logging
+        full_path_tensorboard_logdir = os.path.join(self.tensorboard_dir, self.experiment_name, self.run_name)
+        self.writer = SummaryWriter(full_path_tensorboard_logdir)
+    
+    def _setup_mlflow_log(self):
         mlflow.set_experiment(self.experiment_name)
         self.experiment_id = mlflow.get_experiment_by_name(self.experiment_name).experiment_id
         mlflow.start_run(experiment_id=self.experiment_id, run_name=self.run_name)
         mlflow.log_params(self.config)
         # Log the summary string
-        model_summary_str = self.summary_string()
+        model_summary_str = self._summary_string()
         mlflow.log_text(model_summary_str, artifact_file="model_summary.txt")
-        
-        self.log_gradient = log_gradient
-        self.log_weights = log_weights
-
-        # tensorboard logging
-        self.tensorboard_logdir = os.path.join(tensorboard_dir, self.experiment_name, self.run_name)
-        self.writer = SummaryWriter(self.tensorboard_logdir)
 
     
-    def summary_string(self, device = "cpu"):
+    def _summary_string(self, device = "cpu"):
         f = io.StringIO()
         with redirect_stdout(f):
             summary(self.model, input_size=self.model.in_shape, device=device)
         return f.getvalue()
 
 
-    def init_optimizer_scheduler(self, **scheduler_kwargs):
+    def _init_optimizer_scheduler(self, **scheduler_kwargs):
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, **scheduler_kwargs
             )
@@ -86,12 +110,14 @@ class Trainer:
         self.optimizer.step()
 
         # log statistics
-        # mlflow
-        self.log_gradient_statistics()
-        self.log_weights_statistics()
-        #tensorboard
-        self.log_gradient_histogram_tensorboard()
-        self.log_weights_histogram_tensorboard()
+        # if self.log_mlflow:
+        #     # mlflow
+        #     self.log_gradient_statistics()
+        #     self.log_weights_statistics()
+        if self.log_tensorboard:
+            #tensorboard
+            self._log_gradient_histogram_tensorboard()
+            self._log_weights_histogram_tensorboard()
         # clear gradients
         self.optimizer.zero_grad() 
         return loss
@@ -121,13 +147,15 @@ class Trainer:
             self.scheduler.step(val_loss)
             
             # log history
-            self.log_history(train_loss, val_loss, val_acc)
+            self._log_history(train_loss, val_loss, val_acc)
             #lof to mlflow
-            self.log_metrics_mlflow(epoch, **self.history[-1])   
+            if self.log_mlflow:
+                self._log_metrics_mlflow(epoch, **self.history[-1])   
             # log to tensorboard
-            self.log_history_tensorboard(train_loss, val_loss, val_acc, epoch)
+            if self.log_tensorboard:
+                self._log_history_tensorboard(train_loss, val_loss, val_acc, epoch)
 
-            if (epoch) % 5 == 0:
+            if (epoch) % self.print_every_n_epochs == 0:
                 self.model.epoch_end(epoch, result)
 
             # early stopping 
@@ -138,15 +166,19 @@ class Trainer:
                 # load the last checkpoint with the best model
                 self.model.load_state_dict(torch.load('checkpoint.pth'))
                 break
-        # log model
-        mlflow.pytorch.log_model(self.model, "models")
-        # end mlflow run
-        mlflow.end_run()
-        # end tensorboard writer
-        self.writer.close()
+        
+        # save model to mlflow and end the mlflow run
+        if self.log_mlflow:
+            if self.save_models_to_mlflow:
+                mlflow.pytorch.log_model(self.model, "models")
+            mlflow.end_run()
+        
+        # end tensorboard run
+        if self.log_tensorboard:
+            self.writer.close()
         return self.history
 
-    def log_history(self, train_loss, val_loss, val_acc):
+    def _log_history(self, train_loss, val_loss, val_acc):
         # get current learning rate
         lr = self.optimizer.param_groups[0]['lr']
         self.history.append({
@@ -156,13 +188,13 @@ class Trainer:
             'lr': lr
         })
 
-    def log_history_tensorboard(self, train_loss, val_loss, val_acc, epoch):
+    def _log_history_tensorboard(self, train_loss, val_loss, val_acc, epoch):
         self.writer.add_scalar('Loss/train', train_loss, epoch)
         self.writer.add_scalar('Loss/validation', val_loss, epoch)
         self.writer.add_scalar('Accuracy', val_acc, epoch)
 
 
-    def log_param_statistics(self, name, param):
+    def _log_param_statistics(self, name, param):
         param_data = param.detach().cpu().numpy()
         
         mean_val = np.mean(param_data)
@@ -177,30 +209,30 @@ class Trainer:
         mlflow.log_metric(f"{name}_max", max_val)
 
 
-    def log_param_histogram_tensorboard(self, name, param):
+    def _log_param_histogram_tensorboard(self, name, param):
         self.writer.add_histogram(name, param, self.epoch)
 
-    def log_weights_statistics(self):
+    def _log_weights_statistics(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad and name.split('.')[0] in self.log_weights:
-                self.log_param_statistics(name, param)
+                self._log_param_statistics(name, param)
 
-    def log_gradient_statistics(self):
+    def _log_gradient_statistics(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad and name.split('.')[0] in self.log_gradient:
-                self.log_param_statistics(f"{name}_gradient", param.grad)
+                self._log_param_statistics(f"{name}_gradient", param.grad)
 
-    def log_gradient_histogram_tensorboard(self):
+    def _log_gradient_histogram_tensorboard(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad and name.split('.')[0] in self.log_gradient:
-                self.log_param_histogram_tensorboard(f"{name}_gradient", param.grad)
+                self._log_param_histogram_tensorboard(f"{name}_gradient", param.grad)
     
-    def log_weights_histogram_tensorboard(self):
+    def _log_weights_histogram_tensorboard(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad and name.split('.')[0] in self.log_weights:
-                self.log_param_histogram_tensorboard(name, param)
+                self._log_param_histogram_tensorboard(name, param)
         
-    def log_metrics_mlflow(self, epoch, train_loss, val_loss, val_acc, lr):
+    def _log_metrics_mlflow(self, epoch, train_loss, val_loss, val_acc, lr):
         mlflow.log_metrics({
             'train_loss': train_loss,
             'val_loss': val_loss,

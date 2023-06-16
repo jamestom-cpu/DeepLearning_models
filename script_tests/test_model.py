@@ -212,7 +212,7 @@ model = CNN(
 print(model.print_summary(device="cpu"))
 
 experiment_name = "test"
-run_name = "with conv1 and conv2 layer info"
+run_name = "separate_logging"
 
 trainer = Trainer(
     model, opt_func=opt_func,
@@ -228,10 +228,7 @@ trainer = Trainer(
 
 
 model = to_device(model, device)
-
 model.evaluate(val_dl)
-
-
 
 
 # model dir
