@@ -13,9 +13,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from pprint import pprint
 
-print("before matplotlib.use")
 plt.switch_backend('TkAgg')
-print("after matplotlib.use")
+
 
 
 PROJECT_CWD = r"/workspace/"
