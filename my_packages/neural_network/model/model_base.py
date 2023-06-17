@@ -2,6 +2,9 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 from torchsummary import summary
+from numba import cuda
+
+from my_packages.neural_network.gpu_aux import to_device
 
 class Model_Base(nn.Module):
     def __init__(self, loss_fn=F.mse_loss, *args, **kwargs):
@@ -43,6 +46,8 @@ class Model_Base(nn.Module):
     
     def print_summary(self, in_shape, device = "cpu"):
         return summary(self, input_size=in_shape, device=device)
+    
+    
 
     
     @staticmethod

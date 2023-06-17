@@ -27,7 +27,7 @@ os.environ["MLFLOW_TRACKING_URI"] = "mlflow"
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
 from my_packages.neural_network.data_generators.iterator import DataIterator
 from my_packages.neural_network.model.model_trainer import Trainer
-from my_packages.neural_network.model.CNN_base import Model_Base
+from my_packages.neural_network.model.model_base import Model_Base
 
 # torch import 
 import torch
@@ -38,7 +38,7 @@ print("number of GPUs: ",torch.cuda.device_count())
 print("I am currently using device number: ", torch.cuda.current_device())
 print("the device object is: ", torch.cuda.device(0))
 print("the device name is: ", torch.cuda.get_device_name(0))
-
+torch.cuda.empty_cache()
 
 
 from my_packages.neural_network.model.early_stopping import EarlyStopping
@@ -178,7 +178,7 @@ lr = 0.001
 patience = 5
 lr_dampling_factor = 0.5
 opt_func = torch.optim.Adam
-n_iterations = 5
+n_iterations = 6
 
 
 model_dir = os.path.join(PROJECT_CWD, "models", "test")
@@ -195,7 +195,6 @@ test_dataloader = DataLoader(Hds_test, batch_size=batch_size, shuffle=True)
 # move the dataloaders to the GPU
 train_dl = DeviceDataLoader(train_dataloader, device)
 val_dl = DeviceDataLoader(val_dataloader, device)
-test_dl = DeviceDataLoader(test_dataloader, device)
 
 input_shape =   (2, 21, 21)
 output_shape =  (2, 7, 7)
@@ -210,7 +209,7 @@ model = CNN(
 print(model.print_summary(device="cpu"))
 
 experiment_name = "test"
-run_name = "separate_logging"
+run_name = "separate_logging_1"
 
 trainer = Trainer(
     model, opt_func=opt_func,
@@ -222,12 +221,12 @@ trainer = Trainer(
         "conv_layer1_size": conv_layer1_size,
         "conv_layer2_size": conv_layer2_size,
     },
-    log_mlflow=True, log_tensorboard=False
+    log_mlflow=True, log_tensorboard=True
     )
 
 
 model = to_device(model, device)
-model.evaluate(val_dl)
+print("evaluation before training: ", model.evaluate(val_dl))
 
 
 # model dir
@@ -237,6 +236,12 @@ if not os.path.exists(model_dir):
 
 
 history = trainer.fit(n_iterations, train_dl, val_dl)
+trainer.free_cuda_memory()
 
-# temp save of the model
+# use the model to evaluate the test set
+print("evaluation after training: ", model.evaluate(test_dataloader))
+
+# try clearing the cache
 torch.save(model.state_dict(), os.path.join(model_dir, "temp.pt"))
+
+print("finished training")

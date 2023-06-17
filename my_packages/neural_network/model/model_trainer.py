@@ -1,6 +1,7 @@
 from typing import Iterable
 import os, sys, io
 from contextlib import redirect_stdout
+from numba import cuda
 
 
 
@@ -14,6 +15,7 @@ import mlflow
 import mlflow.pytorch
 import numpy as np
 from my_packages.neural_network.model.early_stopping import EarlyStopping
+from my_packages.neural_network.gpu_aux import to_device
 from .aux_funcs_mlflow import clean_mlflow_metrics_efficient
 
 class Trainer:
@@ -81,6 +83,18 @@ class Trainer:
 
     def clean_mlflow_metrics(self):
         clean_mlflow_metrics_efficient(self.mlflow_dir)
+
+    def free_cuda_memory(self):
+        # move model to cpu
+        to_device(self.model, 'cpu')
+        torch.cuda.empty_cache()
+        
+    def _completely_free_cuda_memory_(self):
+        """Can lead to segmentation fault"""
+        to_device(self.model, 'cpu')
+        torch.cuda.empty_cache()
+        cuda.select_device(0)
+        cuda.close()
         
 
     def _setup_tensorboard_log(self):
@@ -129,8 +143,16 @@ class Trainer:
         self.optimizer.zero_grad() 
         return loss
     
+    def _prepare_for_training(self):
+        # start by clearing the cuda memory
+        torch.cuda.empty_cache()
+
+        # check that the the model is on the GPU
+        to_device(self.model, 'cuda')
 
     def fit(self, epochs, train_loader, val_loader):
+        self._prepare_for_training()
+        
         for epoch in range(epochs):
             self.epoch = epoch
             self.model.train()
@@ -141,7 +163,7 @@ class Trainer:
                 
 
             # Validation phase
-            self.model.eval() # set to evaluation mode
+            # self.model.eval() # set to evaluation mode
             result = self.model.evaluate(val_loader)
             result['train_loss'] = torch.stack(train_losses).mean().item()
 
@@ -176,13 +198,17 @@ class Trainer:
         
         # save model to mlflow and end the mlflow run
         if self.log_mlflow:
+            print("Close mlflow session")
             if self.save_models_to_mlflow:
                 mlflow.pytorch.log_model(self.model, "models")
             mlflow.end_run()
         
         # end tensorboard run
         if self.log_tensorboard:
+            print("Close tensorboard session")
             self.writer.close()
+        
+        print("Training finished")
         return self.history
 
     def _log_history(self, train_loss, val_loss, val_acc):
