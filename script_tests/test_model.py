@@ -1,3 +1,6 @@
+print("starting script")
+
+
 import os, sys
 import h5py
 import numpy as np
@@ -10,8 +13,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from pprint import pprint
 
-
+print("before matplotlib.use")
 plt.switch_backend('TkAgg')
+print("after matplotlib.use")
 
 
 PROJECT_CWD = r"/workspace/"
@@ -219,7 +223,7 @@ trainer = Trainer(
         "conv_layer1_size": conv_layer1_size,
         "conv_layer2_size": conv_layer2_size,
     },
-    log_mlflow=True, log_tensorboard=True
+    log_mlflow=True, log_tensorboard=False
     )
 
 

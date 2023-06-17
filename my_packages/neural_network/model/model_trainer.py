@@ -14,6 +14,7 @@ import mlflow
 import mlflow.pytorch
 import numpy as np
 from my_packages.neural_network.model.early_stopping import EarlyStopping
+from .aux_funcs_mlflow import clean_mlflow_metrics_efficient
 
 class Trainer:
     def __init__(
@@ -29,6 +30,7 @@ class Trainer:
             log_weights: Iterable[str]=[],
             parameters_of_interest: dict={},
             save_models_to_mlflow=True,
+            _include_cleaning_of_mlflow_metrics=False,
             ):
         
         self.print_every_n_epochs = print_every_n_epochs
@@ -38,6 +40,9 @@ class Trainer:
         self.optimizer = opt_func(model.parameters(), lr)
         
         self.model_dir = model_dir
+
+        if _include_cleaning_of_mlflow_metrics:
+            self.clean_mlflow_metrics()
 
         self.early_stopping = EarlyStopping(patience=patience, path=os.path.join(self.model_dir, "checkpoint.pth"))
         self._init_optimizer_scheduler(**scheduler_kwargs)
@@ -74,6 +79,8 @@ class Trainer:
         if self.log_tensorboard:
             self._setup_tensorboard_log()
 
+    def clean_mlflow_metrics(self):
+        clean_mlflow_metrics_efficient(self.mlflow_dir)
         
 
     def _setup_tensorboard_log(self):
@@ -233,6 +240,9 @@ class Trainer:
                 self._log_param_histogram_tensorboard(name, param)
         
     def _log_metrics_mlflow(self, epoch, train_loss, val_loss, val_acc, lr):
+        if not all([isinstance(x, float) for x in [train_loss, val_loss, val_acc, lr]]):
+            mlflow.end_run()
+            raise ValueError("Metrics must be floats")
         mlflow.log_metrics({
             'train_loss': train_loss,
             'val_loss': val_loss,
