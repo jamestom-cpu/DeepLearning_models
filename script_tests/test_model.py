@@ -112,23 +112,25 @@ Eds_test = E_Components_Dataset(test_dataset).scale_to_01()
 
 
 # split into training and validation sets
-train_size = int(0.8 * len(Hds))
+train_size = int(0.8 * len(Eds))
 val_size = len(Hds) - train_size
-train_dataset, val_dataset = torch.utils.data.random_split(Hds, [train_size, val_size])
+train_dataset, val_dataset = torch.utils.data.random_split(Eds, [train_size, val_size])
 
 print("train_dataset size: ", len(train_dataset))
 print("val_dataset size: ", len(val_dataset))
 
 ## Define the Model Structure
 class CNN(Model_Base):
-    def __init__(self, in_shape, out_shape, conv_size1=32, conv_size2=64, linear_size1 = 128, loss_fn=F.mse_loss):
+    def __init__(
+            self, in_shape, out_shape, conv_size1=32, conv_size2=64, 
+            linear_size1 = 128, loss_fn=F.mse_loss):
         
         self.in_shape = in_shape
         self.out_shape = out_shape
         
         n_layers = self.in_shape[0]
         out_size = np.prod(out_shape)
-        super(CNN, self).__init__(loss_fn=loss_fn)
+        super(CNN, self).__init__(loss_fn=loss_fn, apply_sigmoid_to_accuracy=True)
 
         # conv layers
         self.conv1 = nn.Conv2d(n_layers, conv_size1, kernel_size=3, stride=1, padding=1)
@@ -178,12 +180,7 @@ lr = 0.001
 patience = 5
 lr_dampling_factor = 0.5
 opt_func = torch.optim.Adam
-n_iterations = 6
-
-
-model_dir = os.path.join(PROJECT_CWD, "models", "test")
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
+n_iterations = 15
 
 
 
@@ -191,13 +188,13 @@ if not os.path.exists(model_dir):
 # create the dataloaders
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True ,num_workers = 4,  pin_memory=True)
-test_dataloader = DataLoader(Hds_test, batch_size=batch_size, shuffle=True)
+test_dataloader = DataLoader(Eds_test, batch_size=batch_size, shuffle=True)
 # move the dataloaders to the GPU
 train_dl = DeviceDataLoader(train_dataloader, device)
 val_dl = DeviceDataLoader(val_dataloader, device)
 
-input_shape =   (2, 21, 21)
-output_shape =  (2, 7, 7)
+input_shape =   (1, 21, 21)
+output_shape =  (1, 7, 7)
 
 model = CNN(
     input_shape,
@@ -208,8 +205,13 @@ model = CNN(
     loss_fn=loss_fn)
 print(model.print_summary(device="cpu"))
 
-experiment_name = "test"
-run_name = "separate_logging_1"
+
+# model dir
+model_dir = os.path.join(PROJECT_CWD, "models", "simple_electric")
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+experiment_name = "search_electric_model"
+run_name = "same_as_magnetic"
 
 trainer = Trainer(
     model, opt_func=opt_func,
@@ -221,7 +223,7 @@ trainer = Trainer(
         "conv_layer1_size": conv_layer1_size,
         "conv_layer2_size": conv_layer2_size,
     },
-    log_mlflow=True, log_tensorboard=True
+    log_mlflow=True, log_tensorboard=False
     )
 
 
@@ -229,19 +231,15 @@ model = to_device(model, device)
 print("evaluation before training: ", model.evaluate(val_dl))
 
 
-# model dir
-model_dir = os.path.join(PROJECT_CWD, "models", "simple_magnetic")
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
+
 
 
 history = trainer.fit(n_iterations, train_dl, val_dl)
 trainer.free_cuda_memory()
 
 # use the model to evaluate the test set
-print("evaluation after training: ", model.evaluate(test_dataloader))
+print("evaluation after training")
+print("evaluation on the test set: ", model.evaluate(test_dataloader))
 
 # try clearing the cache
 torch.save(model.state_dict(), os.path.join(model_dir, "temp.pt"))
-
-print("finished training")

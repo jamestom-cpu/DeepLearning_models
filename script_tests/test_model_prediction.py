@@ -22,7 +22,7 @@ from my_packages.neural_network.data_generators.iterator import DataIterator
 from my_packages.neural_network.model.model_trainer import Trainer
 from my_packages.neural_network.model.model_base import Model_Base
 from my_packages.neural_network.predictor.predictor  import Predictor
-
+from my_packages.neural_network.aux_funcs.evaluation_funcs import f1_score_np
 # torch import 
 import torch
 from torch import nn
@@ -144,13 +144,31 @@ model_dir = "models/simple_magnetic"
 model_name = "temp.pt"
 
 model_path = os.path.join(model_dir, model_name)
+
+## load mlflow model
+import mlflow.pytorch
+mlflow_model_path = r"/workspace/mlflow/285319224310435874/320b40490b5445cb86d8ef2efde49834/artifacts/models"
+mlflow_model = mlflow.pytorch.load_model(mlflow_model_path)
+
+
 predictor = Predictor(
     preprocessing_func=preprocessing, 
     postprocessing_func=postprocessing,
-    model=model)
-predictor.load_model_and_weights(model_path, device="cuda")
+    model=mlflow_model)
+# predictor.load_model_and_weights(model_path, device="cuda")
 
 prediction = predictor.predict(random_fields)
+probability_map = predictor.prediction_probability_map(random_fields)
+
+
+
 labelsH = l[-2:]
-accuracy = predictor.accuracy(random_fields, labelsH, thresh=0.5)
+accuracy = predictor.accuracy(random_fields, labelsH, certainty_level=0.5)
+
+
+fig, ax = plt.subplots(3,2, figsize=(15,4.5), constrained_layout=True)
+rmg.plot_Hlabeled_data(random_fields, labelsH, ax=(ax[0,0], ax[0,1]))
+predictor.plot(random_fields, certainty_level=0.5, ax= ax[1:])
+plt.show()
+
 print("finished")

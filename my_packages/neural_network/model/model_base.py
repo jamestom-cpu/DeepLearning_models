@@ -7,9 +7,10 @@ from numba import cuda
 from my_packages.neural_network.gpu_aux import to_device
 
 class Model_Base(nn.Module):
-    def __init__(self, loss_fn=F.mse_loss, *args, **kwargs):
+    def __init__(self, loss_fn=F.mse_loss, apply_sigmoid_to_accuracy=True, *args, **kwargs):
         super(Model_Base, self).__init__()
         self.loss_fn = loss_fn
+        self.apply_sigmoid_to_accuracy = apply_sigmoid_to_accuracy
 
 
     def training_step(self, batch):
@@ -22,7 +23,7 @@ class Model_Base(nn.Module):
         inputs, targets = batch
         out = self(inputs)
         loss = self.loss_fn(out, targets)
-        accuracy = self._accuracy(out, targets)
+        accuracy = self._accuracy(out, targets, apply_sigmoid=self.apply_sigmoid_to_accuracy)
         return {'val_loss': loss.detach(), 'val_acc': accuracy}
 
     def validation_epoch_end(self, outputs):
@@ -46,13 +47,13 @@ class Model_Base(nn.Module):
     
     def print_summary(self, in_shape, device = "cpu"):
         return summary(self, input_size=in_shape, device=device)
-    
-    
 
     
     @staticmethod
-    def _accuracy(out, targets, thresh=0.5):
+    def _accuracy(out, targets, thresh=0.5, apply_sigmoid=False):
         with torch.no_grad():
+            if apply_sigmoid:
+                out = torch.sigmoid(out)
             # Convert output probabilities to binary values (0 or 1)
             out_binary = (out > thresh).float()
 
