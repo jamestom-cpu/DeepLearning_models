@@ -10,6 +10,8 @@ services:
       - 6006:6006
     volumes: 
       - "$PWD:/workspace"
+      - "$EXTERNAL_STORAGE:/ext_data"
+
     restart: always
     environment:
       - GRANT_SUDO=yes

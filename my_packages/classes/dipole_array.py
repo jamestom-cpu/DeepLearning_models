@@ -37,7 +37,7 @@ class DipoleSourceArray():
 
 
         # each dipole has different values
-        self.r0 = np.array(r0)
+        self._r0 = np.array(r0)
         self.N_dipoles = len(self.r0)
         self._orientations = None
         self.orientations = orientations
@@ -63,6 +63,14 @@ class DipoleSourceArray():
         electric_dipole_list = filter(lambda x: x.type == "Electric", self.dipoles)
         return DipoleSourceArray.init_dipole_array_from_dipole_list(self.f, list(electric_dipole_list))
 
+    @property
+    def r0(self):
+        return self._r0
+    @r0.setter
+    def r0(self, r0):
+        self._r0 = np.array(r0)
+        for ii, dipole in enumerate(self.dipoles):
+            dipole.r0 = self._r0[ii]
 
     @property
     def orientations(self):

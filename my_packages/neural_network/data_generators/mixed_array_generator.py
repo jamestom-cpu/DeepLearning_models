@@ -30,7 +30,8 @@ class MixedArrayGenerator(Generator):
             dynamic_range, f=[1e9],
             field_res = (50,50),
             dipole_density_E = 0.5,
-            dipole_density_H = 0.5
+            dipole_density_H = 0.5,
+            include_dipole_position_uncertainty=True,
             ) -> None:
         
         kwargs = {
@@ -64,12 +65,30 @@ class MixedArrayGenerator(Generator):
         self.electric_generator = RandomElectricDipoleGenerator(**Ekwargs)
 
         self.RESCALE_CONSTANT = self.define_scale_constant()
+
+        self.include_dipole_position_uncertainty = include_dipole_position_uncertainty
     
     @staticmethod
     def define_scale_constant():
         power = np.random.normal(2, 0.3)
         return 5**power
 
+    def _add_noise_to_dipole_array_xy(self, dipole_array: FlatDipoleArray):
+        xcell = np.diff(self.xbounds) / self.resolution[0]
+        ycell = np.diff(self.ybounds) / self.resolution[1]
+
+        # add a uniform random noise from -xcell/2 to xcell/2
+        ndipoles = len(dipole_array.dipoles)
+        xnoise = np.random.uniform(-xcell/2, xcell/2, size=(ndipoles,))
+        ynoise = np.random.uniform(-ycell/2, ycell/2, size=(ndipoles,))
+
+        noise = np.stack((xnoise, ynoise, np.zeros_like(xnoise)), axis=1)
+
+        new_r0 = dipole_array.r0 + noise
+        
+        # update array position
+        dipole_array.r0 = new_r0
+        return dipole_array
     
     def _generate_random_array(self, rescale_electric_moments=True):
         scale_factor_H = 1
@@ -77,6 +96,8 @@ class MixedArrayGenerator(Generator):
         magnetic_array = self.magnetic_generator._return_magnetic_dipole_array(scale_factor=scale_factor_H)
         electric_array = self.electric_generator._return_electric_dipole_array(scale_factor=scale_factor_E)
         self.dipole_array = magnetic_array + electric_array
+        if self.include_dipole_position_uncertainty:
+            self.dipole_array = self._add_noise_to_dipole_array_xy(self.dipole_array)
         return self.dipole_array
     
     def _generate_fh(self):

@@ -21,3 +21,4 @@ dependencies:
     - torchsummary
     - mlflow
     - tensorboard
+    - numba
