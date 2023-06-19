@@ -17,7 +17,6 @@ from my_packages.neural_network.data_generators.electric_array_generator import 
 from my_packages.neural_network.data_generators.abstract import Generator
 
 import matplotlib.pyplot as plt
-plt.switch_backend('TkAgg')
 
 class MixedArrayGenerator(Generator):
     def __init__(
@@ -282,7 +281,7 @@ class MixedArrayGenerator(Generator):
     
 
 if __name__ == "__main__":
-    import torch 
+    plt.switch_backend('TkAgg')
 
     save_dir = "/workspace/NN_data/mixed_array_data"
     fullpath_train = os.path.join(save_dir, "train_and_valid_dataset.pt")

@@ -14,7 +14,6 @@ from my_packages.classes.field_classes import Scan
 
 from my_packages.neural_network.data_generators.abstract import Generator
 import matplotlib.pyplot as plt
-plt.switch_backend('TkAgg')
 
 
 
@@ -181,7 +180,8 @@ class RandomElectricDipoleGenerator(Generator):
 
 
 if __name__ == "__main__":
-    
+    plt.switch_backend('TkAgg')
+
     resolution=(21,21)
     field_res = (50,50)
     xbounds = [-0.01, 0.01]
