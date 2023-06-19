@@ -1,0 +1,25 @@
+name: EM_pytorch
+channels:
+  - default
+dependencies:
+  - python=3.10.*
+  - pip
+  - pip:
+    - numpy
+    - pandas
+    - seaborn
+    - scipy
+    - scikit-learn
+    - matplotlib
+    - pyaedt
+    - h5py
+    - ipykernel
+    - attrs
+    - moviepy
+    - shapely
+    - scikit-image
+    - torchsummary
+    - mlflow
+    - tensorboard
+    - numba
+    - torch

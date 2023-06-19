@@ -14,7 +14,6 @@ from my_packages.classes.field_classes import Scan
 
 from my_packages.neural_network.data_generators.abstract import Generator 
 import matplotlib.pyplot as plt
-plt.switch_backend('TkAgg')
 
 
 
@@ -55,10 +54,15 @@ class RandomMagneticDipoleGenerator(Generator):
         self.mask = np.stack(mask_layers, axis=0)
         self.N_dipoles = np.sum(self.mask)
         return self.mask
-    
+
     def _generate_random_moments(self):
-        moments_r, moments_i = np.random.uniform(1/self.dynamic_range, 1, size=(2, self.N_dipoles))
-        return moments_r+1j*moments_i
+        moments_abs = np.random.uniform(1/self.dynamic_range, 1, size=(self.N_dipoles,))
+        moments_phase = np.random.uniform(0, 2*np.pi, size=(self.N_dipoles,))
+        return moments_abs * np.exp(1j * moments_phase)
+    
+    # def _generate_random_moments(self):
+    #     moments_r, moments_i = np.random.uniform(1/self.dynamic_range, 1, size=(2, self.N_dipoles))
+    #     return moments_r+1j*moments_i
     
     def _return_r0(self):
         """
@@ -207,7 +211,8 @@ class RandomMagneticDipoleGenerator(Generator):
 
 
 if __name__ == "__main__":
-    
+    plt.switch_backend('TkAgg')
+
     resolution=(21,21)
     field_res = (50,50)
     xbounds = [-0.01, 0.01]

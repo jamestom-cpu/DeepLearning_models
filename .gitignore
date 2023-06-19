@@ -5,3 +5,4 @@ mlflow/*
 tensorboard/*
 supervisord.log
 supervisord.pid
+*.cpython*
