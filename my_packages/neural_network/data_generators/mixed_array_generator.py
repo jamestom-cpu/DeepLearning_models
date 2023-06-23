@@ -1,6 +1,8 @@
 import numpy as np
 from typing import Iterable, Tuple
 import os, sys
+import torch.nn.functional as F
+import torch
 
 main_workspace_path = "/workspace"
 sys.path.append(main_workspace_path)
@@ -27,6 +29,7 @@ class MixedArrayGenerator(Generator):
             substrate_epsilon_r,
             probe_height,
             dynamic_range, f=[1e9],
+            padding=None,
             field_res = (50,50),
             dipole_density_E = 0.5,
             dipole_density_H = 0.5,
@@ -44,6 +47,7 @@ class MixedArrayGenerator(Generator):
             "dynamic_range": dynamic_range,
             "f": f,
             "field_res": field_res,
+            "padding": padding,
         }
         
         super().__init__(**kwargs)
@@ -63,9 +67,36 @@ class MixedArrayGenerator(Generator):
         self.magnetic_generator = RandomMagneticDipoleGenerator(**Hkwargs)
         self.electric_generator = RandomElectricDipoleGenerator(**Ekwargs)
 
+
         self.RESCALE_CONSTANT = self.define_scale_constant()
 
         self.include_dipole_position_uncertainty = include_dipole_position_uncertainty
+
+    @property
+    def cell_size(self):
+        return self._return_cell_size()
+    
+    @property
+    def trimmed_mask(self):
+        return self._return_trimmed_mask()
+    
+
+
+    @staticmethod
+    def pad_tensor(input_tensor, k):
+        # Check if the input tensor is at least 2-dimensional
+        if len(input_tensor.shape) < 2:
+            raise ValueError("Input tensor should be at least 2-dimensional")
+        
+        # Padding the last two dimensions with k
+        padded_tensor = F.pad(input_tensor, (k, k, k, k))
+        
+        return padded_tensor
+    
+
+    def _return_cell_size(self):
+        return (np.diff(self.xbounds) / self.resolution[0])[0], (np.diff(self.ybounds) / self.resolution[1])[0]
+    
     
     @staticmethod
     def define_scale_constant():
@@ -139,46 +170,98 @@ class MixedArrayGenerator(Generator):
         self._generate_masks()
         self._generate_fh()
         self.dfh.evaluate_fields(N=10)
-        Ez = self.dfh.E.run_scan(component="z", field_type="E")
-        Hx = self.dfh.H.run_scan(component="x", field_type="H")
-        Hy = self.dfh.H.run_scan(component="y", field_type="H")
+        if not isinstance(self.probe_height, Iterable):
+            pheight = [self.probe_height]
+        else:
+            pheight = self.probe_height
+        Ez=[]
+        Hx=[]
+        Hy=[]
+        for h in pheight:
+            Ez.append(self.dfh.E.run_scan(component="z", field_type="E", index=h))
+            Hx.append(self.dfh.H.run_scan(component="x", field_type="H", index=h))
+            Hy.append(self.dfh.H.run_scan(component="y", field_type="H", index=h))
+        return Ez, Hx, Hy
+    
+    
+    def input_data_to_Scan(self, data):
+        n_probe_heights = data.shape[1]
+
+        fields_p_height = [self._input_data_to_Scan_single_layer(data[:,ii, ...], grid=self.r[..., ii]) for ii in range(n_probe_heights)]
+        Ez, Hx, Hy = zip(*fields_p_height)
+
+        for x in Ez, Hx, Hy:
+            if any(isinstance(t, type(None)) for t in x):
+                x=None
+
         return Ez, Hx, Hy
 
-    def input_data_to_Scan(self, data):
+    def _input_data_to_Scan_single_layer(self, data, grid=None):
+        if grid is None:
+            grid = self.r
         if len(data)==3:
-            Ez = Scan(data[0], grid=self.r, freq=self.f, axis="z", component="z", field_type="E")
-            Hx = Scan(data[1], grid=self.r, freq=self.f, axis="z", component="x", field_type="H")
-            Hy = Scan(data[2], grid=self.r, freq=self.f, axis="z", component="y", field_type="H")
+            Ez = Scan(data[0], grid=grid, freq=self.f, axis="z", component="z", field_type="E")
+            Hx = Scan(data[1], grid=grid, freq=self.f, axis="z", component="x", field_type="H")
+            Hy = Scan(data[2], grid=grid, freq=self.f, axis="z", component="y", field_type="H")
             return Ez, Hx, Hy
         elif len(data)==2:
-            Hx = Scan(data[0], grid=self.r, freq=self.f, axis="z", component="x", field_type="H")
-            Hy = Scan(data[1], grid=self.r, freq=self.f, axis="z", component="y", field_type="H")
+            Hx = Scan(data[0], grid=grid, freq=self.f, axis="z", component="x", field_type="H")
+            Hy = Scan(data[1], grid=grid, freq=self.f, axis="z", component="y", field_type="H")
             return None, Hx, Hy
         elif len(data)==1:
-            Ez = Scan(data[0], grid=self.r, freq=self.f, axis="z", component="z", field_type="E")
+            Ez = Scan(data[0], grid=grid, freq=self.f, axis="z", component="z", field_type="E")
             return Ez, None, None
 
+    @staticmethod
+    def _list_of_scans_to_list_of_numpys(list_of_scans):
+        return [scan.scan for scan in list_of_scans]
     
     def generate_labeled_data(self):
         Ez, Hx, Hy = self.generate_random_fields()
-        fields = np.stack((Ez.scan, Hx.scan, Hy.scan), axis=0)
+        
+        Ez = self._list_of_scans_to_list_of_numpys(Ez)
+        Hx = self._list_of_scans_to_list_of_numpys(Hx)
+        Hy = self._list_of_scans_to_list_of_numpys(Hy)
+
+        fields = np.stack((Ez, Hx, Hy), axis=0)
         return fields, self.mask
     
-    def plot_labeled_data(self, fields, mask, ax=None, FIGSIZE=(15,3), image_folder="images", savename="temp.png"):
+    def plot_labeled_data(self, fields, mask, index=0, mask_padding=0,  
+                          ax=None, FIGSIZE=(15,3), image_folder="/workspace/images", 
+                          savename="temp.png"):
+        
+        if isinstance(mask, np.ndarray):
+            mask = torch.from_numpy(mask)
+        mask = self.pad_tensor(mask, mask_padding)
+        # return to numpy
+        mask = mask.numpy()
+        
         Ez, Hx, Hy = self.input_data_to_Scan(fields)
         x, y = self.r0_grid[:-1, ..., 0]
-        self._plotting_func(Ez, Hx, Hy, x, y, mask, ax=ax, FIGSIZE=FIGSIZE)
+        self._plotting_func(Ez[index], Hx[index], Hy[index], x, y, mask, ax=ax, FIGSIZE=FIGSIZE)
         
-        if not os.path.exists(image_folder):
-            os.makedirs(image_folder)
+        if savename is not None:
+            if not os.path.exists(image_folder):
+                os.makedirs(image_folder)
 
-        fullpath = os.path.join(image_folder, savename)
-        plt.savefig(fullpath, dpi=300, bbox_inches="tight")
+            fullpath = os.path.join(image_folder, savename)
+            plt.savefig(fullpath, dpi=300, bbox_inches="tight")
 
-    def plot_Hlabeled_data(self, fields, mask, ax=None, FIGSIZE=(15,3), image_folder="images", savename="temp.png"):
+    def plot_Hlabeled_data(self, fields, mask, index=0, mask_padding=0,  
+                           ax=None, FIGSIZE=(15,3), image_folder="images", 
+                           savename="temp.png"):
+        if isinstance(mask_padding, np.ndarray):
+            mask = torch.from_numpy(mask)
+        mask = self.pad_tensor(mask, mask_padding)
+
+        mask = mask.numpy()
+
+        if np.ndim(fields) == 3:
+            fields = fields.unsqueeze(1)
         _, Hx, Hy = self.input_data_to_Scan(fields)
         x, y = self.r0_grid[:-1, ..., 0]
-        self._H_plotting_func(Hx, Hy, x, y, mask, ax=ax, FIGSIZE=FIGSIZE)
+
+        self._H_plotting_func(Hx[index], Hy[index], x, y, mask, ax=ax, FIGSIZE=FIGSIZE)
 
         if not os.path.exists(image_folder):
             os.makedirs(image_folder)
@@ -186,10 +269,17 @@ class MixedArrayGenerator(Generator):
         fullpath = os.path.join(image_folder, savename)
         plt.savefig(fullpath, dpi=300, bbox_inches="tight")
     
-    def plot_Elabeled_data(self, fields, mask, ax=None, FIGSIZE=(15,3), image_folder="images", savename="temp.png"):
+    def plot_Elabeled_data(self, fields, mask, index=0, mask_padding=0, 
+                           ax=None, FIGSIZE=(15,3), image_folder="images", 
+                           savename="temp.png"):
+        if mask_padding is not None:
+            mask_padding = self.label_trimming
+        
+        mask = self.pad_tensor(mask, mask_padding)
+
         Ez, _, _ = self.input_data_to_Scan(fields)
         x, y = self.r0_grid[:-1, ..., 0]
-        self._E_plotting_func(Ez, x, y, mask, ax=ax, FIGSIZE=FIGSIZE)
+        self._E_plotting_func(Ez[index], x, y, mask, ax=ax, FIGSIZE=FIGSIZE)
 
         if not os.path.exists(image_folder):
             os.makedirs(image_folder)
@@ -281,6 +371,7 @@ class MixedArrayGenerator(Generator):
     
 
 if __name__ == "__main__":
+    import torch
     plt.switch_backend('TkAgg')
 
     save_dir = "/workspace/NN_data/mixed_array_data"

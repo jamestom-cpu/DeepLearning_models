@@ -2,7 +2,7 @@ from typing import Iterable
 import os, sys, io
 from contextlib import redirect_stdout
 from numba import cuda
-
+from tqdm import tqdm
 
 
 import torch
@@ -22,6 +22,7 @@ class Trainer:
     def __init__(
             self, model, opt_func=torch.optim.SGD, 
             lr=0.01, patience=7, scheduler_kwargs={}, 
+            optimizer_kwargs={},
             model_dir="models", 
             log_mlflow=True,
             log_tensorboard=True,
@@ -39,14 +40,14 @@ class Trainer:
         self.model = model
         self.history = []
         self.lr = lr
-        self.optimizer = opt_func(model.parameters(), lr)
+        self.optimizer = opt_func(model.parameters(), lr, **optimizer_kwargs)
         
         self.model_dir = model_dir
 
         if _include_cleaning_of_mlflow_metrics:
             self.clean_mlflow_metrics()
-
-        self.early_stopping = EarlyStopping(patience=patience, path=os.path.join(self.model_dir, "checkpoint.pth"))
+        self.early_stopping_checkpoint_path = os.path.join(self.model_dir, "checkpoint.pth")
+        self.early_stopping = EarlyStopping(patience=patience, path=self.early_stopping_checkpoint_path)
         self._init_optimizer_scheduler(**scheduler_kwargs)
         
         self.config = dict(
@@ -157,7 +158,7 @@ class Trainer:
             self.epoch = epoch
             self.model.train()
             train_losses = []
-            for batch in train_loader:
+            for batch in tqdm(train_loader):
                 loss = self._train_on_batch(batch)
                 train_losses.append(loss)
                 
@@ -193,7 +194,7 @@ class Trainer:
             if self.early_stopping.early_stop:
                 print("Early stopping")
                 # load the last checkpoint with the best model
-                self.model.load_state_dict(torch.load('checkpoint.pth'))
+                self.model.load_state_dict(torch.load(self.early_stopping_checkpoint_path))
                 break
         
         # save model to mlflow and end the mlflow run

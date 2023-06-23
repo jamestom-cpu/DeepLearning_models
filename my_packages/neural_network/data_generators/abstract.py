@@ -25,6 +25,7 @@ class Generator(ABC):
             substrate_epsilon_r,
             probe_height,
             dynamic_range, f=[1e9],
+            padding=None,
             field_res = (50,50),
             dipole_density = 0.5
             ) -> None:
@@ -33,6 +34,7 @@ class Generator(ABC):
         self.field_res = field_res
         self.xbounds = xbounds
         self.ybounds = ybounds
+        self.padding = padding
         self.dipole_height = dipole_height
         self.substrate_thickness = substrate_thickness
         self.substrate_epsilon_r = substrate_epsilon_r
@@ -43,16 +45,28 @@ class Generator(ABC):
         self._generate_r0_grid()
 
     def _generate_r(self):
-        x = np.linspace(self.xbounds[0], self.xbounds[1], self.field_res[0])
-        y = np.linspace(self.ybounds[0], self.ybounds[1], self.field_res[1])
-        z = [self.probe_height]
+        if self.padding is None:
+            xbounds = self.xbounds
+            ybounds = self.ybounds
+        else:
+            xbounds = [self.xbounds[0]-self.padding[0], self.xbounds[1]+self.padding[0]]
+            ybounds = [self.ybounds[0]-self.padding[1], self.ybounds[1]+self.padding[1]]
+
+
+        x = np.linspace(xbounds[0], xbounds[1], self.field_res[0])
+        y = np.linspace(ybounds[0], ybounds[1], self.field_res[1])
+        if isinstance(self.probe_height, Iterable):
+            z = self.probe_height
+        else:
+            z = [self.probe_height]
         self.r = Grid(np.meshgrid(x, y, z, indexing="ij"))
 
     def _generate_r0_grid(self):
         """
         grid: Grid object
         cellgrid_shape: tuple of (n, m) where n and m are integers
-        """
+        """   
+
         x = np.linspace(self.xbounds[0], self.xbounds[1], self.resolution[0]+1) 
         x = np.diff(x)/2 + x[:-1]
 

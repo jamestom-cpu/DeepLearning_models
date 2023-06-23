@@ -13,7 +13,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from pprint import pprint
 
-plt.switch_backend('TkAgg')
 
 
 
@@ -53,60 +52,98 @@ import torch.nn.functional as F
 from my_packages.neural_network.datasets_and_loaders.dataset_transformers_H import H_Components_Dataset
 from my_packages.neural_network.datasets_and_loaders.dataset_transformers_E import E_Components_Dataset
 
+
+
 # data parameters
-resolution=(7,7)
-field_res = (21,21)
-xbounds = [-0.01, 0.01]
-ybounds = [-0.01, 0.01]
+resolution=(11,11)
+field_res = (30,30)
+xbounds = [-1e-2, 1e-2]
+ybounds = [-1e-2, 1e-2]
+padding = None
 dipole_height = 1e-3
 substrate_thickness = 1.4e-2
 substrate_epsilon_r = 4.4
-dynamic_range = 10
-probe_height = 0.3e-2
-dipole_density_E = 0.2
-dipole_density_H = 0.2
+dynamic_range = 2
+probe_heights = [3e-3, 6e-3, 8e-3]
+dipole_density_E = 0.1
+dipole_density_H = 0.1
+inclde_dipole_position_uncertainty = False
+# data_dir = "/share/NN_data/high_res_with_noise"
+data_dir = "/workspace/NN_data/11_res_uncertain_position"
 
 
 rmg = MixedArrayGenerator(
     resolution=resolution,
     xbounds=xbounds,
     ybounds=ybounds,
+    padding=padding,
     dipole_height=dipole_height,
     substrate_thickness=substrate_thickness,
     substrate_epsilon_r=substrate_epsilon_r,
-    probe_height=probe_height,
+    probe_height=probe_heights,
     dynamic_range=dynamic_range,
     f=[1e9],
     field_res=field_res,
     dipole_density_E=dipole_density_E,
-    dipole_density_H=dipole_density_H
+    dipole_density_H=dipole_density_H,
+    include_dipole_position_uncertainty=inclde_dipole_position_uncertainty,
     )
 
 data_iterator = DataIterator(rmg)
 
 
-N = 100000
-N_test = 1000
+fields,labels = data_iterator.generate_N_data_samples(10)
+
+f, t = fields[0], labels[0]
 
 
-# save the datasets
-save_dir = os.path.join(PROJECT_CWD, "NN_data", "mixed_array_data")
-if not os.path.exists(save_dir):
-    os.makedirs(save_dir)
-fullpath_train = os.path.join(save_dir, "train_and_valid_dataset.pt")
-fullpath_test = os.path.join(save_dir, "test_dataset.pt")
+ds = TensorDataset(torch.from_numpy(fields), torch.from_numpy(labels))
+Eds = E_Components_Dataset(ds, probe_height_index=1).unpad_label().scale_to_01()
+Hds = H_Components_Dataset(ds, probe_height_index=1).unpad_label().scale_to_01()
+
+fH, lH = Hds[0]
+
+rmg.plot_labeled_data(f, t, index=1)
+rmg.plot_Hlabeled_data(fH, lH, mask_padding=1)  
+plt.show()
+
+print("f")
+
+# N = 100000
+# N_test = 1000
+
+
+# # save the datasets
+# save_dir = os.path.join(PROJECT_CWD, "NN_data", "mixed_array_data")
+# if not os.path.exists(save_dir):
+#     os.makedirs(save_dir)
+# fullpath_train = os.path.join(save_dir, "train_and_valid_dataset.pt")
+# fullpath_test = os.path.join(save_dir, "test_dataset.pt")
+fullpath_train = os.path.join(data_dir, "train_and_valid_dataset.pt")
+fullpath_test = os.path.join(data_dir, "test_dataset.pt")
+
 
 # load the data from the datasets
 train_and_valid_dataset = torch.load(fullpath_train)
 test_dataset = torch.load(fullpath_test)
 
+# only consider the probe height of 6mm
+
+# # create a new dataset 
+# train_and_valid_dataset = train_and_valid_dataset[:, 0, ...][0], train_and_valid_dataset[:][0]
+# train_and_valid_dataset = TensorDataset(*train_and_valid_dataset)
+
+# test_dataset = test_dataset[:, 0, ...][0], test_dataset[:][0]
+# test_dataset = TensorDataset(*test_dataset)
 
 
-Hds = H_Components_Dataset(train_and_valid_dataset).scale_to_01()
-Eds = E_Components_Dataset(train_and_valid_dataset).scale_to_01()
+height_index = 0
 
-Hds_test = H_Components_Dataset(test_dataset).scale_to_01() 
-Eds_test = E_Components_Dataset(test_dataset).scale_to_01()
+Hds = H_Components_Dataset(train_and_valid_dataset, probe_height_index=height_index).scale_to_01()
+Eds = E_Components_Dataset(train_and_valid_dataset, probe_height_index=height_index).unpad_label().scale_to_01()
+
+Hds_test = H_Components_Dataset(test_dataset, probe_height_index=height_index).unpad_label().scale_to_01() 
+Eds_test = E_Components_Dataset(test_dataset, probe_height_index=height_index).unpad_label().scale_to_01()
 
 
 
@@ -114,94 +151,169 @@ Eds_test = E_Components_Dataset(test_dataset).scale_to_01()
 # split into training and validation sets
 train_size = int(0.8 * len(Eds))
 val_size = len(Hds) - train_size
-train_dataset, val_dataset = torch.utils.data.random_split(Eds, [train_size, val_size])
+train_dataset, val_dataset = torch.utils.data.random_split(Hds, [train_size, val_size])
 
 print("train_dataset size: ", len(train_dataset))
 print("val_dataset size: ", len(val_dataset))
 
+
+
+# # inspect data
+# n_examples = 5
+
+
+# # plot the examples
+# plt.switch_backend('TkAgg')
+# fig, axs = plt.subplots(n_examples, 2, figsize=(15, 5))
+
+# for i in range(n_examples):
+#     H_examples, labels_examples = train_dataset[i]
+#     rmg.plot_Hlabeled_data(H_examples, labels_examples, ax=axs[i])
+# plt.show()
+
+
 ## Define the Model Structure
-class CNN(Model_Base):
+
+def conv_block(in_channels, out_channels, pool=False, batch_norm=True):
+    layers = [
+        nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+        ]
+    if batch_norm:
+        layers.append(nn.BatchNorm2d(out_channels))
+    layers.append(nn.ReLU())
+    if pool:
+        layers.append(nn.MaxPool2d(2))
+    return nn.Sequential(*layers)
+
+
+def deconv_block(in_channels, out_channels, kernel_size=2, stride=2, padding=0, output_padding=0):
+    layers = [
+        nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, 
+                           stride=stride, padding=padding, output_padding=output_padding),
+        nn.BatchNorm2d(out_channels),
+        nn.ReLU(inplace=True)]
+    return nn.Sequential(*layers)
+
+
+class Quasi_ResNet(Model_Base):
     def __init__(
-            self, in_shape, out_shape, conv_size1=32, conv_size2=64, 
-            linear_size1 = 128, loss_fn=F.mse_loss):
+            self, in_shape, out_shape, conv_size1 = 64, conv_size2 = 128, conv_size3 = 256,
+            fc1_size = 512, dropout_p_fc = 0.15, dropout_p_conv=0.1,
+            loss_fn=F.mse_loss):
         
         self.in_shape = in_shape
         self.out_shape = out_shape
-        
+
+        self.conv_size1 = conv_size1
+        self.conv_size2 = conv_size2
+        self.conv_size3 = conv_size3
+
+        self.dropout_p_fc = dropout_p_fc
+        self.dropout_p_conv = dropout_p_conv
+
+        self.fc1_size = fc1_size 
         n_layers = self.in_shape[0]
         out_size = np.prod(out_shape)
-        super(CNN, self).__init__(loss_fn=loss_fn, apply_sigmoid_to_accuracy=True)
+        super(Quasi_ResNet, self).__init__(loss_fn=loss_fn, apply_sigmoid_to_accuracy=True)
 
         # conv layers
-        self.conv1 = nn.Conv2d(n_layers, conv_size1, kernel_size=3, stride=1, padding=1)
+        self.conv1 = conv_block(n_layers, self.conv_size1) # output: conv_size1 x 30 x 30
+        self.res1 = nn.Sequential(conv_block(self.conv_size1, self.conv_size1), 
+                                  conv_block(self.conv_size1, self.conv_size1))
+        
+        self.dropout1 = nn.Dropout(self.dropout_p_conv)
+
+        self.conv2 = conv_block(self.conv_size1, self.conv_size2, pool=True,) # output: conv_size2 x 15 x 15
+        self.res2 = nn.Sequential(conv_block(self.conv_size2, self.conv_size2), 
+                                  conv_block(self.conv_size2, self.conv_size2))
+
+        self.dropout2 = nn.Dropout(self.dropout_p_conv)
+
+        self.conv3 = conv_block(self.conv_size2, self.conv_size3, pool=True) # output: conv_size3 x 7 x 7
+        self.res3 = nn.Sequential(conv_block(self.conv_size3, self.conv_size3), conv_block(self.conv_size3, self.conv_size3))
+        
+        # global max pooling
+        self.global_max_pool = nn.AdaptiveMaxPool2d((1,1))
+
+        # fc_input_size = self.conv_size3 * 7 * 7
+        fc_input_size = self.conv_size3
+
+        # upsampling layers
+        self.dropout3 = nn.Dropout(self.dropout_p_fc)
+        self.fc1 = nn.Linear(fc_input_size, self.fc1_size) # 
         self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(conv_size1, conv_size2, kernel_size=3, stride=1, padding=1)
-        self.relu2 = nn.ReLU()
+        #self.dropout4 = nn.Dropout(self.dropout_p_fc)
+        self.fc2 = nn.Linear(self.fc1_size, out_size) 
 
-        # model head
-        self.maxpool = nn.MaxPool2d(2, 2) # output: conv_size2 x 10 x 10
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(conv_size2 * 10 * 10, linear_size1)
-        self.relu3 = nn.ReLU()
-        self.fc2 = nn.Linear(linear_size1, out_size)
-        self.unflatten = nn.Unflatten(1, out_shape)
-
-    
     def forward(self, xb):
         out = self.conv1(xb)
-        out = self.relu1(out)
+        out = self.res1(out) + out
+        out = self.dropout1(out)
         out = self.conv2(out)
-        out = self.relu2(out)
-        out = self.maxpool(out)
-        out = self.flatten(out)
+        out = self.res2(out) + out
+        out = self.dropout2(out)
+        out = self.conv3(out)
+        out = self.res3(out) + out
+
+        out = self.global_max_pool(out)
+
+
+        out = out.view(out.size(0), -1)
+        out = self.dropout3(out)
         out = self.fc1(out)
-        out = self.relu3(out)
+        out = self.relu1(out)
+        #out = self.dropout4(out)
         out = self.fc2(out)
-        out = self.unflatten(out)
+        out = out.view(out.size(0), self.out_shape[0], self.out_shape[1], self.out_shape[2])
         return out
     
     # overwrite
     def print_summary(self, device = "cpu"):
         return summary(self, input_size=self.in_shape, device=device)
 
-
-
-
 device = get_default_device()
 print("device: ", device)
 
 
-batch_size = 64   
-conv_layer1_size = 32
-conv_layer2_size = 64
-linear_layer1_size = 256
+batch_size = 256   
+conv_layer1 = 128
+conv_layer2 = 256
+conv_layer3 = 512
+fc_layer1 = 1024
 loss_fn = nn.BCEWithLogitsLoss()
 lr = 0.001
 patience = 5
 lr_dampling_factor = 0.5
+lr_patience = 0
 opt_func = torch.optim.Adam
-n_iterations = 15
+n_iterations = 100
 
-
+# regularization
+dropout_p_fc = 0.05
+dropout_p_conv = 0
+weight_decay= 1e-6
 
 
 # create the dataloaders
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True ,num_workers = 4,  pin_memory=True)
-test_dataloader = DataLoader(Eds_test, batch_size=batch_size, shuffle=True)
+test_dataloader = DataLoader(Hds_test, batch_size=batch_size, shuffle=True)
 # move the dataloaders to the GPU
 train_dl = DeviceDataLoader(train_dataloader, device)
 val_dl = DeviceDataLoader(val_dataloader, device)
 
-input_shape =   (1, 21, 21)
-output_shape =  (1, 7, 7)
+input_shape =   (2, 30, 30)
+output_shape =  (2, 11, 11)
 
-model = CNN(
+model = Quasi_ResNet(
     input_shape,
     output_shape, 
-    conv_size1=conv_layer1_size, 
-    conv_size2=conv_layer2_size, 
-    linear_size1=linear_layer1_size,
+    conv_size1=conv_layer1, 
+    conv_size2= conv_layer2, 
+    conv_size3=conv_layer3,
+    fc1_size=fc_layer1,
+    dropout_p_fc=dropout_p_fc,
+    dropout_p_conv=dropout_p_conv,
     loss_fn=loss_fn)
 print(model.print_summary(device="cpu"))
 
@@ -210,20 +322,22 @@ print(model.print_summary(device="cpu"))
 model_dir = os.path.join(PROJECT_CWD, "models", "simple_electric")
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
-experiment_name = "search_electric_model"
-run_name = "same_as_magnetic"
+experiment_name = "t1_30x30 -> 11x11"
+run_name = "ResNet_2reg"
 
 trainer = Trainer(
     model, opt_func=opt_func,
     lr=lr, patience=patience, 
-    scheduler_kwargs={'mode':'min', 'factor':lr_dampling_factor, 'patience':2, 
+    optimizer_kwargs={"weight_decay":weight_decay},
+    scheduler_kwargs={'mode':'min', 'factor':lr_dampling_factor, 'patience':lr_patience, 
                       'verbose':True}, 
     model_dir=model_dir, experiment_name=experiment_name, run_name=run_name,
-    log_gradient=["conv1"], log_weights=[], parameters_of_interest={
-        "conv_layer1_size": conv_layer1_size,
-        "conv_layer2_size": conv_layer2_size,
-    },
-    log_mlflow=True, log_tensorboard=False
+    log_gradient=["conv1", "conv2", "fc1"], log_weights=[], parameters_of_interest={
+        "conv_layer1": conv_layer1,
+        "conv_layer2": conv_layer2,
+        "fc_layer1": fc_layer1,
+    }, print_every_n_epochs=1,
+    log_mlflow=True, log_tensorboard=True
     )
 
 
@@ -231,14 +345,16 @@ model = to_device(model, device)
 print("evaluation before training: ", model.evaluate(val_dl))
 
 
+torch.cuda.empty_cache()
 
 
-
+print("starting training")
 history = trainer.fit(n_iterations, train_dl, val_dl)
-trainer.free_cuda_memory()
+
 
 # use the model to evaluate the test set
 print("evaluation after training")
+test_dl = DeviceDataLoader(test_dataloader, device)
 print("evaluation on the test set: ", model.evaluate(test_dataloader))
 
 # try clearing the cache

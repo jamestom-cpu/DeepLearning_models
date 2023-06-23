@@ -25,7 +25,9 @@ class RandomMagneticDipoleGenerator(Generator):
             substrate_thickness,
             substrate_epsilon_r,
             probe_height,
-            dynamic_range, f=[1e9],
+            dynamic_range,
+            padding=None, 
+            f=[1e9],
             field_res = (50,50),
             dipole_density = 0.5
             ) -> None:
@@ -40,7 +42,8 @@ class RandomMagneticDipoleGenerator(Generator):
             dynamic_range=dynamic_range,
             f=f,
             field_res=field_res,
-            dipole_density=dipole_density
+            dipole_density=dipole_density,
+            padding=padding
             )
         self._my_basis_dict = self.__dict__.copy()
         # remove values from _my_basis_dict that are not in kwargs

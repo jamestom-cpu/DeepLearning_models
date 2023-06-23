@@ -6,7 +6,8 @@ import cmath as cm
 from pprint import pprint
 
 
-PROJECT_CWD = r"/home/pignari/Desktop/neural_networks/DeepLearning_models"
+# PROJECT_CWD = r"/home/pignari/Desktop/neural_networks/DeepLearning_models"
+PROJECT_CWD = r"/workspace"
 sys.path.append(PROJECT_CWD)
 
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
@@ -30,35 +31,42 @@ if torch.cuda.is_available():
 
 
 # data parameters
-resolution=(21,21)
-field_res = (50,50)
-xbounds = [-0.01, 0.01]
-ybounds = [-0.01, 0.01]
+resolution=(11,11)
+field_res = (30,30)
+xbounds = [-1e-2, 1e-2]
+ybounds = [-1e-2, 1e-2]
+padding = None
 dipole_height = 1e-3
 substrate_thickness = 1.4e-2
 substrate_epsilon_r = 4.4
 dynamic_range = 2
-probe_height = 0.6e-2
-dipole_density_E = 0.05
-dipole_density_H = 0.05
-data_dir = "/share/NN_data/high_res_with_noise"
+probe_heights = [6e-3, 8e-3, 1e-2]
+dipole_density_E = 0.1
+dipole_density_H = 0.1
+inclde_dipole_position_uncertainty = False
+# data_dir = "/share/NN_data/high_res_with_noise"
+data_dir = "/workspace/NN_data/11_res_"
 
 
 rmg = MixedArrayGenerator(
     resolution=resolution,
     xbounds=xbounds,
     ybounds=ybounds,
+    padding=padding,
     dipole_height=dipole_height,
     substrate_thickness=substrate_thickness,
     substrate_epsilon_r=substrate_epsilon_r,
-    probe_height=probe_height,
+    probe_height=probe_heights,
     dynamic_range=dynamic_range,
     f=[1e9],
     field_res=field_res,
     dipole_density_E=dipole_density_E,
-    dipole_density_H=dipole_density_H
+    dipole_density_H=dipole_density_H,
+    include_dipole_position_uncertainty=inclde_dipole_position_uncertainty,
     )
 
+
+print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_size[1]*1e3))
 # dfh = rmg._generate_fh()
 # M_magnetic = np.abs(dfh.magnetic_array.M)
 # M_electric = np.abs(dfh.electric_array.M)
@@ -71,14 +79,24 @@ rmg = MixedArrayGenerator(
 
 data_iterator = DataIterator(rmg)
 
-N = 10
-N_test = 5
+N = 100000
+N_test = 1000
 
 inputs, target = data_iterator.generate_N_data_samples(N)
 inputs_test, target_test = data_iterator.generate_N_data_samples(N_test)
 train_and_valid_dataset = TensorDataset(torch.from_numpy(inputs).float(), torch.from_numpy(target).float())
 test_dataset = TensorDataset(torch.from_numpy(inputs_test).float(), torch.from_numpy(target_test).float())
 print("train_dataset size: ", len(train_and_valid_dataset))
+
+
+# f, l = test_dataset[0]
+
+# import matplotlib.pyplot as plt
+# fig, ax = plt.subplots(len(probe_heights), 3, figsize=(15,5), constrained_layout=True)
+# for ii in range(len(probe_heights)):
+#     rmg.plot_labeled_data(f, l, savename="test_data", ax=ax[ii], index=ii)
+# fig.suptitle("test data - probe heights = {}".format(probe_heights))
+# plt.show()
 
 
 
