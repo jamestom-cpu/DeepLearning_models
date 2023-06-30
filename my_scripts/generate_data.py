@@ -45,7 +45,7 @@ dipole_density_E = 0.1
 dipole_density_H = 0.1
 inclde_dipole_position_uncertainty = False
 # data_dir = "/share/NN_data/high_res_with_noise"
-data_dir = "/workspace/NN_data/11_res_"
+data_dir = "/ext_data/NN_data/11_res_3h/"
 
 
 rmg = MixedArrayGenerator(
@@ -80,13 +80,34 @@ print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_s
 data_iterator = DataIterator(rmg)
 
 N = 100000
+truncs = 20000
 N_test = 1000
 
-inputs, target = data_iterator.generate_N_data_samples(N)
-inputs_test, target_test = data_iterator.generate_N_data_samples(N_test)
-train_and_valid_dataset = TensorDataset(torch.from_numpy(inputs).float(), torch.from_numpy(target).float())
-test_dataset = TensorDataset(torch.from_numpy(inputs_test).float(), torch.from_numpy(target_test).float())
-print("train_dataset size: ", len(train_and_valid_dataset))
+dataset_name = "training"
+
+if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+
+
+# inspect the data
+import matplotlib.pyplot as plt
+fields, lables = data_iterator.generate_N_data_samples(3)
+
+f, l = fields[0], lables[0]
+fig, ax = plt.subplots(len(probe_heights), 3, figsize=(15,5), constrained_layout=True)
+for ii in range(len(probe_heights)):
+    rmg.plot_labeled_data(f, l, savename="test_data", ax=ax[ii], index=ii)
+fig.suptitle("test data - probe heights = {}".format(probe_heights))
+plt.show()
+
+ds = data_iterator.generate_and_save_data_samples(N, file_prefix=dataset_name, M=truncs, data_dir=data_dir)
+test_ds = data_iterator.generate_and_save_data_samples(N_test, file_prefix="test", M=None, data_dir=data_dir)
+
+# inputs, target = data_iterator.generate_N_data_samples(N)
+# inputs_test, target_test = data_iterator.generate_N_data_samples(N_test)
+# train_and_valid_dataset = TensorDataset(torch.from_numpy(inputs).float(), torch.from_numpy(target).float())
+# test_dataset = TensorDataset(torch.from_numpy(inputs_test).float(), torch.from_numpy(target_test).float())
+# print("train_dataset size: ", len(train_and_valid_dataset))
 
 
 # f, l = test_dataset[0]
@@ -100,10 +121,10 @@ print("train_dataset size: ", len(train_and_valid_dataset))
 
 
 
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
-fullpath_train = os.path.join(data_dir, "train_and_valid_dataset.pt")
-fullpath_test = os.path.join(data_dir, "test_dataset.pt")
+# if not os.path.exists(data_dir):
+#     os.makedirs(data_dir)
+# fullpath_train = os.path.join(data_dir, "train_and_valid_dataset.pt")
+# fullpath_test = os.path.join(data_dir, "test_dataset.pt")
 
-torch.save(train_and_valid_dataset, fullpath_train)
-torch.save(test_dataset, fullpath_test)
+# torch.save(train_and_valid_dataset, fullpath_train)
+# torch.save(test_dataset, fullpath_test)

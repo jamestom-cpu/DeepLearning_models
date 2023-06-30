@@ -18,6 +18,11 @@ class Predictor:
         self.device = device
         self.preprocessing_function = preprocessing_func
         self.postprocessing_function = postprocessing_func
+        self._take_specific_height_func = None
+
+    def consider_specific_height(self, index=0):
+        self._take_specific_height_func = lambda x: x[:, index, ...]
+        return self
 
     def load_model_and_weights(self, path:str, model=None, device="cpu"):
         if model is None:
@@ -29,6 +34,10 @@ class Predictor:
         self.model = model
         return model
     
+    def consider_single_height(self, index=0):
+        if self.model is None:
+            raise ValueError("model is None, please provide a model")
+        
     
     @staticmethod
     def _load_model_and_weights(model, path, device="cpu"):
@@ -53,6 +62,10 @@ class Predictor:
     def model_wrapper(func):
         @functools.wraps(func)
         def wrapper(self, inputs, *args, **kwargs):
+            # take the specific height if specified
+            if self._take_specific_height_func is not None:
+                inputs = self._take_specific_height_func(inputs)
+            # preprocess the inputs
             inputs = self.preprocess(inputs)
             if isinstance(inputs, np.ndarray):
                 inputs = torch.from_numpy(inputs)
@@ -95,14 +108,19 @@ class Predictor:
         accuracy = f1_score_np(prediction_prob_map, targets, certainty_level)
         return accuracy
 
-    def plot(self, inputs, certainty_level=0.5, ax=None):
+    def plot(self, inputs, certainty_level=0.5, index=0, ax=None):        
         prediction = self.predict(inputs, certainty_level=certainty_level)
         n_layers = prediction.shape[0]
         probability_map = self.prediction_probability_map(inputs)
         if ax is None:
             fig, ax = plt.subplots(2, n_layers, figsize=(9,4.5), constrained_layout=True)
             fig.suptitle("Dipole Prediction")
-        self.plot_predictions(prediction, inputs, ax=ax[0])
+
+        # chose which height to plot
+        inputs_to_plot = inputs[:, index]
+
+        # plot the predictions
+        self.plot_predictions(prediction, inputs_to_plot, ax=ax[0])
         self.plot_probability_maps(probability_map, prediction, ax=ax[1])
         
 
@@ -144,11 +162,13 @@ class Predictor:
         elif prediction.shape[0] == 2:
             inputs = inputs[-2:]
             markers = [">", "^"]
-            colors = ["r", "r"]
+            colors = ["r", "k"]
+            edgecolors = ["k", "r"]
         else: 
             inputs = inputs[-3:]
             markers = ["o", ">", "^"]
             colors = ["w", "r", "r"]
+            edgecolors = ["k", "k", "r"]
 
 
         n_layers = prediction.shape[0]
@@ -170,7 +190,7 @@ class Predictor:
             marker_x = pred_x * scale_x
             marker_y = pred_y * scale_y
 
-            ax[i].scatter(marker_x, marker_y, marker=markers[i], color="r", edgecolors="k", s=75)
+            ax[i].scatter(marker_x, marker_y, marker=markers[i], color=colors[i], edgecolors=edgecolors[i], s=75)
             ax[i].set_title("prediction layer {}".format(i))
         return ax
 

@@ -6,6 +6,8 @@ from scipy import interpolate
 from matplotlib import pyplot as plt
 from dataclasses import dataclass
 from functools import wraps
+from matplotlib import ticker
+
 
 from my_packages.classes import plot_fields
 from my_packages.auxillary_math_functions import curl
@@ -1362,7 +1364,57 @@ class Scan(PartialField2D, np.ndarray):
             vmax=vmax,
             **kwargs
         )
+    def plot_fieldmap(self, ax=None, title=None, **kwargs):
+        """plots the field values without using contours """
 
+        if title is None:
+            title = f"${self.field_type}_{self.component}$ field"
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 3), constrained_layout=True, dpi=100)
+        else:
+            fig = ax.figure
+        
+        if self.field_type == "E":
+            units = "V/m"
+        elif self.field_type == "H":
+            units = "A/m"
+        else:
+            units = "unknown"
+        
+        ax.set_title(title, fontsize=16)
+        ax.set_xlabel("x [mm]")
+        ax.set_ylabel("y [mm]")
+        ax.set_xlim(self.grid.x.min(), self.grid.x.max())
+        ax.set_ylim(self.grid.y.min(), self.grid.y.max())
+        ax.set_xticks(np.linspace(self.grid.x.min(), self.grid.x.max(), 5))
+        ax.set_yticks(np.linspace(self.grid.y.min(), self.grid.y.max(), 5))
+
+        # set tick formatter for mm 
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{1000*x:.1f}"))
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{1000*x:.1f}"))
+        
+        x, y, _ = self.grid
+        q = ax.pcolor(x, y, self.scan, cmap="jet")
+        colorbar = fig.colorbar(q, ax=ax, label=f"[{units}]")
+
+        # Get minimum and maximum of the data
+        vmin = np.min(self.scan)
+        vmax = np.max(self.scan)
+
+        # Create 5 evenly spaced ticks between vmin and vmax
+        ticks = np.linspace(vmin, vmax, 5)
+
+        # Set ticks on the colorbar
+        colorbar.set_ticks(ticks)
+
+        # Optional: Format the tick labels. You can change this to any format you want.
+        colorbar.ax.set_yticklabels(['{:.2e}'.format(tick) for tick in ticks]) 
+        colorbar.ax.set_ylabel(units, rotation=270, labelpad=15)
+        return fig, ax
+        
+
+        
 
     def scatter_plot(self, ax=None, **kwargs):
         """plot the positions of the pixels that are True in the scan"""

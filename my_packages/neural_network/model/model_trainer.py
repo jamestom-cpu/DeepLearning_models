@@ -1,7 +1,7 @@
 from typing import Iterable
 import os, sys, io
 from contextlib import redirect_stdout
-from numba import cuda
+# from numba import cuda
 from tqdm import tqdm
 
 
@@ -90,12 +90,12 @@ class Trainer:
         to_device(self.model, 'cpu')
         torch.cuda.empty_cache()
         
-    def _completely_free_cuda_memory_(self):
-        """Can lead to segmentation fault"""
-        to_device(self.model, 'cpu')
-        torch.cuda.empty_cache()
-        cuda.select_device(0)
-        cuda.close()
+    # def _completely_free_cuda_memory_(self):
+    #     """Can lead to segmentation fault"""
+    #     to_device(self.model, 'cpu')
+    #     torch.cuda.empty_cache()
+    #     cuda.select_device(0)
+    #     cuda.close()
         
 
     def _setup_tensorboard_log(self):

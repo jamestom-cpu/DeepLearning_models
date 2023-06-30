@@ -185,6 +185,8 @@ class MixedArrayGenerator(Generator):
     
     
     def input_data_to_Scan(self, data):
+        if np.ndim(data) == 3:
+            data = np.expand_dims(data, axis=1)
         n_probe_heights = data.shape[1]
 
         fields_p_height = [self._input_data_to_Scan_single_layer(data[:,ii, ...], grid=self.r[..., ii]) for ii in range(n_probe_heights)]
@@ -216,7 +218,7 @@ class MixedArrayGenerator(Generator):
     def _list_of_scans_to_list_of_numpys(list_of_scans):
         return [scan.scan for scan in list_of_scans]
     
-    def generate_labeled_data(self):
+    def generate_labeled_data(self, index=None):
         Ez, Hx, Hy = self.generate_random_fields()
         
         Ez = self._list_of_scans_to_list_of_numpys(Ez)
@@ -224,6 +226,8 @@ class MixedArrayGenerator(Generator):
         Hy = self._list_of_scans_to_list_of_numpys(Hy)
 
         fields = np.stack((Ez, Hx, Hy), axis=0)
+        if index is not None:
+            fields = fields[:, index, ...]
         return fields, self.mask
     
     def plot_labeled_data(self, fields, mask, index=0, mask_padding=0,  
@@ -250,6 +254,8 @@ class MixedArrayGenerator(Generator):
     def plot_Hlabeled_data(self, fields, mask, index=0, mask_padding=0,  
                            ax=None, FIGSIZE=(15,3), image_folder="images", 
                            savename="temp.png"):
+        if isinstance(mask, np.ndarray):
+            mask = torch.from_numpy(mask)
         if isinstance(mask_padding, np.ndarray):
             mask = torch.from_numpy(mask)
         mask = self.pad_tensor(mask, mask_padding)
@@ -257,7 +263,8 @@ class MixedArrayGenerator(Generator):
         mask = mask.numpy()
 
         if np.ndim(fields) == 3:
-            fields = fields.unsqueeze(1)
+            fields = np.expand_dims(fields, axis=1)
+
         _, Hx, Hy = self.input_data_to_Scan(fields)
         x, y = self.r0_grid[:-1, ..., 0]
 

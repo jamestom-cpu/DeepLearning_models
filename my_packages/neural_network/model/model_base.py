@@ -2,7 +2,7 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 from torchsummary import summary
-from numba import cuda
+# from numba import cuda
 
 from my_packages.neural_network.gpu_aux import to_device
 
