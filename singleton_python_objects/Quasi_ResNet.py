@@ -23,12 +23,12 @@ def conv_block(in_channels, out_channels, pool=False, batch_norm=True):
  
 class Quasi_ResNet(Model_Base):
     def __init__(
-            self, in_shape, out_shape, conv_size1 = 64, conv_size2 = 128, conv_size3 = 256,
+            self, input_shape, output_shape, conv_size1 = 64, conv_size2 = 128, conv_size3 = 256,
             fc1_size = 512, dropout_p_fc = 0.15, dropout_p_conv=0.1,
             loss_fn=F.mse_loss):
         
-        self.in_shape = in_shape
-        self.out_shape = out_shape
+        self.input_shape = input_shape
+        self.output_shape = output_shape
 
         self.conv_size1 = conv_size1
         self.conv_size2 = conv_size2
@@ -38,8 +38,8 @@ class Quasi_ResNet(Model_Base):
         self.dropout_p_conv = dropout_p_conv
 
         self.fc1_size = fc1_size 
-        n_layers = self.in_shape[0]
-        out_size = np.prod(out_shape)
+        n_layers = self.input_shape[0]
+        out_size = np.prod(output_shape)
         super(Quasi_ResNet, self).__init__(loss_fn=loss_fn, apply_sigmoid_to_accuracy=True)
 
         # conv layers
@@ -90,12 +90,12 @@ class Quasi_ResNet(Model_Base):
         out = self.relu1(out)
         #out = self.dropout4(out)
         out = self.fc2(out)
-        out = out.view(out.size(0), self.out_shape[0], self.out_shape[1], self.out_shape[2])
+        out = out.view(out.size(0), self.output_shape[0], self.output_shape[1], self.output_shape[2])
         return out
     
     # overwrite
     def print_summary(self, device = "cpu"):
-        return summary(self, input_size=self.in_shape, device=device)
+        return summary(self, input_size=self.input_shape, device=device)
     
 ## hyperparameters
 

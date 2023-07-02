@@ -1157,6 +1157,92 @@ class Scan(PartialField2D, np.ndarray):
     
     def sample_point(self, x:Tuple[float, float])-> np.ndarray:
         return self.evaluate_at_points([x]).squeeze()
+    
+    def return_padded_scan(self, xbounds=None, ybounds=None, fill_value=0):
+        """Return a new Scan with the same grid as the original scan, but with the field padded with fill_value
+        outside the bounds of the original scan grid. The bounds of the new grid can be specified, otherwise they
+        are determined automatically. The new grid will have the same step size as the original grid. 
+
+        Parameters
+        ----------
+        xbounds : tuple, optional
+            Bounds of the new grid in the x direction, by default None
+        ybounds : tuple, optional
+            Bounds of the new grid in the y direction, by default None
+        fill_value : float, optional
+            Value to fill the new grid with, by default 0
+            
+        Returns
+        -------
+        Scan
+            New Scan with the same grid as the original scan, but with the field padded with fill_value
+            outside the bounds of the original scan grid
+        """
+        # find objective bounds
+        if xbounds is None:
+            xbounds = self.grid.x.min(), self.grid.x.max()
+        if ybounds is None:
+            ybounds = self.grid.y.min(), self.grid.y.max()
+
+        # Determine the bounds and size of the new grid        
+        x_step = self.grid.x[1] - self.grid.x[0]
+        y_step = self.grid.y[1] - self.grid.y[0]
+
+        # Determine the new bounds
+        # xbounds 
+        xmin, xmax = xbounds
+        xmin_diff = self.grid.x.min() - xmin
+        xmax_diff = xmax - self.grid.x.max()
+
+        if xmin_diff > 0:
+            xmin = self.grid.x.min() - np.ceil((self.grid.x.min() - xmin)/x_step) * x_step
+        else:
+            xmin = self.grid.x.min()
+
+        if xmax_diff > 0:
+            xmax = self.grid.x.max() + np.ceil((xmax - self.grid.x.max())/x_step) * x_step
+        else: 
+            xmax = self.grid.x.max()
+        # ybounds
+        ymin, ymax = ybounds
+        ymin_diff = self.grid.y.min() - ymin
+        ymax_diff = ymax - self.grid.y.max()
+
+        if ymin_diff > 0:
+            ymin = self.grid.y.min() - np.ceil((self.grid.y.min() - ymin)/y_step) * y_step
+        else:
+            ymin = self.grid.y.min()
+
+        if ymax_diff > 0:
+            ymax = self.grid.y.max() + np.ceil((ymax - self.grid.y.max())/y_step) * y_step
+        else:
+            ymax = self.grid.y.max()
+
+        new_xaxis = np.arange(xmin, xmax + x_step, x_step)
+        new_yaxis = np.arange(ymin, ymax + y_step, y_step)
+
+        new_grid = Grid(np.meshgrid(new_xaxis, new_yaxis, self.grid.z, indexing='ij'))[...,0]
+
+        # Create the new field, filled with fill_value
+        new_field = np.full(new_grid.shape[1:], fill_value, dtype=self.scan.dtype)
+
+        # Define a tolerance, can be adjusted as needed
+        tolerance_x = 0.1*x_step
+        tolerance_y = 0.1*y_step
+
+        # Get the indices of the original grid in the new grid
+        x_indices = np.where((new_grid.x >= self.grid.x.min() - tolerance_x) & (new_grid.x <= self.grid.x.max() + tolerance_x))[0]
+        y_indices = np.where((new_grid.y >= self.grid.y.min() - tolerance_y) & (new_grid.y <= self.grid.y.max() + tolerance_y))[0]
+        
+        # Copy the values of the original field into the new field
+        x_slice = slice(x_indices.min(), x_indices.max()+1)
+        y_slice = slice(y_indices.min(), y_indices.max()+1)
+        new_field[x_slice, y_slice] = self.scan
+        
+        # Create a new Scan with the new grid and field
+        new_scan = Scan(new_field, new_grid, self.f, self.axis, self.component, self.field_type)
+
+        return new_scan
 
     def apply_filter(self, filter: Callable, *args, include_scan_normalization_step = True, **kwargs)->"Scan":
         """Apply a filter to the scan
@@ -1364,7 +1450,7 @@ class Scan(PartialField2D, np.ndarray):
             vmax=vmax,
             **kwargs
         )
-    def plot_fieldmap(self, ax=None, title=None, **kwargs):
+    def plot_fieldmap(self, ax=None, title=None, build_colorbar=True, vmin=None, vmax=None, **kwargs):
         """plots the field values without using contours """
 
         if title is None:
@@ -1394,24 +1480,30 @@ class Scan(PartialField2D, np.ndarray):
         ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{1000*x:.1f}"))
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{1000*x:.1f}"))
         
-        x, y, _ = self.grid
-        q = ax.pcolor(x, y, self.scan, cmap="jet")
-        colorbar = fig.colorbar(q, ax=ax, label=f"[{units}]")
 
         # Get minimum and maximum of the data
-        vmin = np.min(self.scan)
-        vmax = np.max(self.scan)
+        if vmin is None:
+            vmin = np.min(self.scan)
+        if vmax is None:
+            vmax = np.max(self.scan)
 
-        # Create 5 evenly spaced ticks between vmin and vmax
-        ticks = np.linspace(vmin, vmax, 5)
+        # Plot the data
+        x, y, _ = self.grid
+        q = ax.pcolor(x, y, self.scan, cmap="jet", vmin=vmin, vmax=vmax, **kwargs)
 
-        # Set ticks on the colorbar
-        colorbar.set_ticks(ticks)
+        if build_colorbar:
+            colorbar = fig.colorbar(q, ax=ax, label=f"[{units}]")
 
-        # Optional: Format the tick labels. You can change this to any format you want.
-        colorbar.ax.set_yticklabels(['{:.2e}'.format(tick) for tick in ticks]) 
-        colorbar.ax.set_ylabel(units, rotation=270, labelpad=15)
-        return fig, ax
+            # Create 5 evenly spaced ticks between vmin and vmax
+            ticks = np.linspace(vmin, vmax, 5)
+
+            # Set ticks on the colorbar
+            colorbar.set_ticks(ticks)
+
+            # Optional: Format the tick labels. You can change this to any format you want.
+            colorbar.ax.set_yticklabels(['{:.2e}'.format(tick) for tick in ticks]) 
+            colorbar.ax.set_ylabel(units, rotation=270, labelpad=15)
+        return ax, q
         
 
         
@@ -1447,7 +1539,11 @@ class Scan(PartialField2D, np.ndarray):
     
     def resample_on_grid(self, grid: np.array) -> "Scan":
         pfield_2D = super().resample_on_grid(grid)
-        return pfield_2D.run_scan(self.component, 0, self.field_type)
+        scan = pfield_2D.run_scan(self.component, 0, self.field_type)
+        if np.ndim(scan.grid) == 4:
+            grid = pfield_2D.grid[..., 0]
+        scan.grid = grid
+        return scan
     
     def resample_on_shape(self, shape: Tuple[int, int]) -> "Scan":
         pfield_2D = super().resample_on_shape(shape)
