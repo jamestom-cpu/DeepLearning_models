@@ -4,6 +4,7 @@ import scipy
 import math as m
 import cmath as cm
 from pprint import pprint
+import matplotlib.pyplot as plt
 
 
 # PROJECT_CWD = r"/home/pignari/Desktop/neural_networks/DeepLearning_models"
@@ -33,37 +34,42 @@ if torch.cuda.is_available():
 # data parameters
 resolution=(11,11)
 field_res = (30,30)
-xbounds = [-1e-2, 1e-2]
-ybounds = [-1e-2, 1e-2]
+xbounds = [-2e-2, 2e-2]
+ybounds = [-2e-2, 2e-2]
 padding = None
 dipole_height = 1e-3
 substrate_thickness = 1.4e-2
 substrate_epsilon_r = 4.4
-dynamic_range = 2
+dynamic_range = 1.5
 probe_heights = [6e-3, 8e-3, 1e-2]
-dipole_density_E = 0.1
-dipole_density_H = 0.1
-inclde_dipole_position_uncertainty = False
+dipole_density_E = 0.15 
+dipole_density_H = 0.15
+include_dipole_position_uncertainty = True
 # data_dir = "/share/NN_data/high_res_with_noise"
-data_dir = "/ext_data/NN_data/11_res_3h/"
+data_dir = "/ext_data/NN_data/11_res_noise/"
+
+properties = {
+    "resolution":resolution,
+    "xbounds":xbounds,
+    "ybounds":ybounds,
+    "padding":padding,
+    "dipole_height":dipole_height,
+    "substrate_thickness":substrate_thickness,
+    "substrate_epsilon_r":substrate_epsilon_r,
+    "probe_height":probe_heights,
+    "dynamic_range":dynamic_range,
+    "dipole_density_E":dipole_density_E,
+    "dipole_density_H":dipole_density_H,
+    "include_dipole_position_uncertainty":include_dipole_position_uncertainty,
+    "field_res":field_res,
+    }
+
 
 
 rmg = MixedArrayGenerator(
-    resolution=resolution,
-    xbounds=xbounds,
-    ybounds=ybounds,
-    padding=padding,
-    dipole_height=dipole_height,
-    substrate_thickness=substrate_thickness,
-    substrate_epsilon_r=substrate_epsilon_r,
-    probe_height=probe_heights,
-    dynamic_range=dynamic_range,
-    f=[1e9],
-    field_res=field_res,
-    dipole_density_E=dipole_density_E,
-    dipole_density_H=dipole_density_H,
-    include_dipole_position_uncertainty=inclde_dipole_position_uncertainty,
+    **properties,
     )
+
 
 
 print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_size[1]*1e3))
@@ -79,14 +85,28 @@ print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_s
 
 data_iterator = DataIterator(rmg)
 
+# inspect data
+random_fields, l = rmg.generate_labeled_data()
+rmg.plot_labeled_data(random_fields, l)
+plt.show()
+
+
+# save the rmg dictionary to a json file
+if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+
+
+import json
+with open(os.path.join(data_dir, "data_properties.json"), 'w') as fp:
+    json.dump(properties, fp) 
+
+
 N = 100000
 truncs = 20000
 N_test = 1000
 
 dataset_name = "training"
 
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
 
 
 # inspect the data

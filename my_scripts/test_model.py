@@ -12,7 +12,7 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 from pprint import pprint
-
+import json
 
 
 
@@ -57,9 +57,16 @@ from singleton_python_objects.Quasi_ResNet import get_model
 
 
 # data_dir = "/share/NN_data/high_res_with_noise"
-# data_dir = "/ext_data/NN_data/11_res_3h/"
+data_dir = "/ext_data/NN_data/11_res_noise/"
 
-rmg = get_mixed_array_generator()
+# load the data properties
+json_file = os.path.join(data_dir, "data_properties.json")
+with open(json_file, "r") as f:
+    properties = json.load(f)
+
+rmg = MixedArrayGenerator(**properties)
+
+# rmg = get_mixed_array_generator()
 data_iterator = DataIterator(rmg)
 
 
@@ -92,7 +99,7 @@ plt.show()
 # fullpath_train = os.path.join(save_dir, "train_and_valid_dataset.pt")
 # fullpath_test = os.path.join(save_dir, "test_dataset.pt")
 
-data_dir = "/ext_data/NN_data/11_res_3h/"
+
 fullpath_train = os.path.join(data_dir, "training.pt")
 fullpath_test = os.path.join(data_dir, "test.pt")
 
@@ -165,8 +172,8 @@ print(model.print_summary(device="cpu"))
 model_dir = os.path.join(PROJECT_CWD, "models", "simple_electric")
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
-experiment_name = "t1_30x30 -> 11x11 _ no_uncertainty"
-run_name = "TEST"
+experiment_name = "t1_30x30 -> 11x11 _uncertain_pos"
+run_name = "run1"
 
 ## Train the Model
 # training parameters

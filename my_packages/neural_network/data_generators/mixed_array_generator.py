@@ -107,10 +107,10 @@ class MixedArrayGenerator(Generator):
         xcell = np.diff(self.xbounds) / self.resolution[0]
         ycell = np.diff(self.ybounds) / self.resolution[1]
 
-        # add a uniform random noise from -xcell/2 to xcell/2
+        # add a normal gaussian noise to the position of the dipoles
         ndipoles = len(dipole_array.dipoles)
-        xnoise = np.random.uniform(-xcell/2, xcell/2, size=(ndipoles,))
-        ynoise = np.random.uniform(-ycell/2, ycell/2, size=(ndipoles,))
+        xnoise = np.random.normal(loc=0, scale=xcell/7, size=(ndipoles,))
+        ynoise = np.random.normal(loc=0, scale=xcell/7, size=(ndipoles,))
 
         noise = np.stack((xnoise, ynoise, np.zeros_like(xnoise)), axis=1)
 

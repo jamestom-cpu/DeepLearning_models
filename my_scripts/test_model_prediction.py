@@ -37,12 +37,18 @@ print("cuda available: ", torch.cuda.is_available())
 ## inspect the data
 
 # import the data generator 
-from singleton_python_objects.mixed_array_generator import get_mixed_array_generator
+# from singleton_python_objects.mixed_array_generator import get_mixed_array_generator
 from singleton_python_objects import Quasi_ResNet
+import json
 
-rmg = get_mixed_array_generator()
-data_iterator = DataIterator(rmg)
-data_dir = "/ext_data/NN_data/11_res_3h/"
+data_dir = "/ext_data/NN_data/11_res_noise/"
+
+# load the data properties
+json_file = os.path.join(data_dir, "data_properties.json")
+with open(json_file, "r") as f:
+    properties = json.load(f)
+
+rmg = MixedArrayGenerator(**properties)
 
 
 
@@ -76,7 +82,7 @@ print(model.print_summary(device="cpu"))
 
 ## load mlflow model
 import mlflow.pytorch
-mlflow_model_path = r"/workspace/mlflow/829057909622999832/700803c8139d40aea15b0b6e809d0cda/artifacts/models"
+mlflow_model_path = r"/workspace/mlflow/378794452446859122/034225c1ea9f44b598cb1b57b9d16c31/artifacts/models"
 mlflow_model = mlflow.pytorch.load_model(mlflow_model_path)
 
 

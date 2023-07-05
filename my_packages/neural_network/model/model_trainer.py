@@ -116,7 +116,7 @@ class Trainer:
     def _summary_string(self, device = "cpu"):
         f = io.StringIO()
         with redirect_stdout(f):
-            summary(self.model, input_size=self.model.in_shape, device=device)
+            summary(self.model, input_size=self.model.input_shape, device=device)
         return f.getvalue()
 
 
