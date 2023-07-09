@@ -76,6 +76,15 @@ class Generator(ABC):
         self.r0_grid = Grid(np.meshgrid(x, y, [self.dipole_height], indexing="ij"))
         return self.r0_grid
     
+    def _moments_on_grid(self, mom):
+        """mom can either be M or ph"""
+        mask = self.mask
+        # substitute the 1s of the mask with the values of mom
+        mom_on_grid = np.zeros_like(mask, dtype=np.float64)
+        mom_on_grid[mask == 1] = mom.flatten()
+        return mom_on_grid
+    
+    
     @abstractmethod
     def generate_labeled_data(self):
         pass

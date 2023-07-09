@@ -20,6 +20,8 @@ from my_packages.neural_network.data_generators.abstract import Generator
 
 import matplotlib.pyplot as plt
 
+
+
 class MixedArrayGenerator(Generator):
     def __init__(
             self, resolution, 
@@ -376,6 +378,22 @@ class MixedArrayGenerator(Generator):
         legend = ax1.legend(loc="upper center", bbox_to_anchor=(-0.5, 0.95), frameon=True,
                     handlelength=2.5, handletextpad=0.5, ncol=1)
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###################################################################
 
 if __name__ == "__main__":
     import torch

@@ -203,8 +203,9 @@ probability_map = predictor.prediction_probability_map(data)
 from my_packages.neural_network.large_scans.patch_predictors import HfieldScan_SimplePatchPredictor, HfieldScan_SlidingWindow
 patch_shape = (30, 30)
 certainty_level = 0.2
+stride = (1e-3, 2e-3)
 hfield_predictor = HfieldScan_SlidingWindow(
-    predictor, Hx_processed, Hy_processed, stride = (5e-3, 5e-3),
+    predictor, Hx_processed, Hy_processed, stride = stride,
     patch_xbounds=patch_xbounds, patch_ybounds=patch_ybounds,
     patch_shape=patch_shape, fill_value=fill_value_for_padding, certainty_level=certainty_level
     )
@@ -301,7 +302,7 @@ def return_combined_scan(input_scan, list_of_predictions, output_shape):
         axis=input_scan.axis, component=input_scan.component, 
         field_type=input_scan.field_type)
 
-output_shape = (31,31)
+output_shape = (31,25)
 predictions = (xprobmap, yprobmap)
 prediction_scans_x, prediction_scans_y = get_prediction_scans(xpatches, ypatches, *predictions)
 list_of_predictions_x = return_prediction_list(prediction_scans_x)

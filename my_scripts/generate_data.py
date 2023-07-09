@@ -15,6 +15,7 @@ from my_packages.neural_network.data_generators.mixed_array_generator import Mix
 from my_packages.neural_network.data_generators.iterator import DataIterator
 
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
+from my_packages.neural_network.data_generators.array_generators_mag_and_phase import ArrayGenerator_MagnitudesAndPhases
 from my_packages.neural_network.data_generators.iterator import DataIterator
 
 # torch import 
@@ -70,6 +71,9 @@ rmg = MixedArrayGenerator(
     **properties,
     )
 
+rmg_dp = ArrayGenerator_MagnitudesAndPhases(
+    **properties,
+    )
 
 
 print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_size[1]*1e3))
@@ -83,10 +87,10 @@ print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_s
 # print(magn_dyn_range, electr_dyn_range)
 
 
-data_iterator = DataIterator(rmg)
+data_iterator = DataIterator(rmg_dp)
 
 # inspect data
-random_fields, l = rmg.generate_labeled_data()
+random_fields, l = rmg_dp.generate_labeled_data()
 rmg.plot_labeled_data(random_fields, l)
 plt.show()
 

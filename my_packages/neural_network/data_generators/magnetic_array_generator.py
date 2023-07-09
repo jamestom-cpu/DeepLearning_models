@@ -50,6 +50,8 @@ class RandomMagneticDipoleGenerator(Generator):
         del self._my_basis_dict["r"]
         del self._my_basis_dict["r0_grid"]
 
+    
+
     def generate_mask(self, n_layers=2, p=None):
         if p is None:
             p = self.dipole_density/n_layers
@@ -157,10 +159,13 @@ class RandomMagneticDipoleGenerator(Generator):
             )
         self.dfh = self.dfh_full.dh_magnetic
         return self.dfh
+
+    
     
     def generate_random_H_fields(self):
         self.generate_mask()
         dfh = self._generate_dfh()
+        self.return_target_moments_and_phases() # create the target moment and phases
 
         if self.N_dipoles == 0:
             zero_scan = lambda component: Scan(np.zeros(self.field_res), grid=self.r, 

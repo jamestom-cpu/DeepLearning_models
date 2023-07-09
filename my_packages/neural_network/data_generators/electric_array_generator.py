@@ -136,9 +136,12 @@ class RandomElectricDipoleGenerator(Generator):
         self.dfh = self.dfh_full.dh_electric
         return self.dfh
     
+    
+    
     def generate_random_E_fields(self, N=10):
         self.generate_mask()
         dfh = self._generate_dfh()
+        self.return_target_moments_and_phases() # create the target moment and phases
 
         if self.N_dipoles == 0:
             zero_scan = lambda component: Scan(np.zeros(self.field_res), grid=self.r, 
