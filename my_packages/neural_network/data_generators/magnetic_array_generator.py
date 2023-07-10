@@ -60,10 +60,7 @@ class RandomMagneticDipoleGenerator(Generator):
         self.N_dipoles = np.sum(self.mask)
         return self.mask
 
-    def _generate_random_moments(self):
-        moments_abs = np.random.uniform(1/self.dynamic_range, 1, size=(self.N_dipoles,))
-        moments_phase = np.random.uniform(0, 2*np.pi, size=(self.N_dipoles,))
-        return moments_abs * np.exp(1j * moments_phase)
+    
     
     # def _generate_random_moments(self):
     #     moments_r, moments_i = np.random.uniform(1/self.dynamic_range, 1, size=(2, self.N_dipoles))

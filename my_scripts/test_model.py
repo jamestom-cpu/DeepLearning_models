@@ -24,6 +24,7 @@ os.environ['GIT_PYTHON_REFRESH'] = 'quiet'
 os.environ["MLFLOW_TRACKING_URI"] = "mlflow"
 
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
+from my_packages.neural_network.data_generators.array_generator_mag_and_phase import ArrayGenerator_MagnitudesAndPhases
 from my_packages.neural_network.data_generators.iterator import DataIterator
 from my_packages.neural_network.model.model_trainer import Trainer
 from my_packages.neural_network.model.model_base import Model_Base
@@ -53,11 +54,13 @@ from my_packages.neural_network.datasets_and_loaders.dataset_transformers_H impo
 from my_packages.neural_network.datasets_and_loaders.dataset_transformers_E import E_Components_Dataset
 
 from singleton_python_objects.mixed_array_generator import get_mixed_array_generator
-from singleton_python_objects.Quasi_ResNet import get_model
+from singleton_python_objects.NN_models_empty.ResNet import get_model
+
 
 
 # data_dir = "/share/NN_data/high_res_with_noise"
 data_dir = "/ext_data/NN_data/11_res_noise/"
+# data_dir = "/ext_data/NN_data/11_res_noise_MP_labels/"
 
 # load the data properties
 json_file = os.path.join(data_dir, "data_properties.json")
@@ -65,6 +68,9 @@ with open(json_file, "r") as f:
     properties = json.load(f)
 
 rmg = MixedArrayGenerator(**properties)
+# rmg_dp = ArrayGenerator_MagnitudesAndPhases(
+#     **properties,
+#     )
 
 # rmg = get_mixed_array_generator()
 data_iterator = DataIterator(rmg)
@@ -82,9 +88,8 @@ Hds = H_Components_Dataset(ds, probe_height_index=height_index).scale_to_01()
 
 fH, lH = Hds[0]
 
-rmg.plot_labeled_data(f, t, index=height_index)
-rmg.plot_Hlabeled_data(fH, lH)
-plt.show()
+# rmg_dp.plot(f, t, index=height_index)
+# plt.show()
 
 
 
@@ -163,6 +168,7 @@ val_dl = DeviceDataLoader(val_dataloader, device)
 ## build the model
 input_shape =   (2, 30, 30)
 output_shape =  (2, 11, 11)
+loss_fn = nn.BCEWithLogitsLoss()
 
 model = get_model(input_shape, output_shape)
 print(model.print_summary(device="cpu"))
@@ -173,12 +179,12 @@ model_dir = os.path.join(PROJECT_CWD, "models", "simple_electric")
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
 experiment_name = "t1_30x30 -> 11x11 _uncertain_pos"
-run_name = "run1"
+run_name = "large_ResNet1"
 
 ## Train the Model
 # training parameters
 lr = 0.001
-patience = 5
+patience = 2
 lr_dampling_factor = 0.5
 lr_patience = 0
 opt_func = torch.optim.Adam
@@ -195,7 +201,7 @@ trainer = Trainer(
     model_dir=model_dir, experiment_name=experiment_name, run_name=run_name,
     log_gradient=["conv1", "conv2", "fc1"], log_weights=[], parameters_of_interest={}, 
     print_every_n_epochs=1,
-    log_mlflow=True, log_tensorboard=True
+    log_mlflow=True, log_tensorboard=False
     )
 
 

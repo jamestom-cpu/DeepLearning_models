@@ -76,6 +76,11 @@ class Generator(ABC):
         self.r0_grid = Grid(np.meshgrid(x, y, [self.dipole_height], indexing="ij"))
         return self.r0_grid
     
+    def _generate_random_moments(self):
+        moments_abs = np.random.uniform(1/self.dynamic_range, 1, size=(self.N_dipoles,))
+        moments_phase = np.random.uniform(-np.pi, np.pi, size=(self.N_dipoles,))
+        return moments_abs * np.exp(1j * moments_phase)
+    
     def _moments_on_grid(self, mom):
         """mom can either be M or ph"""
         mask = self.mask

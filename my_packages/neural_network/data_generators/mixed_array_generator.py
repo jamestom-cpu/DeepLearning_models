@@ -172,7 +172,7 @@ class MixedArrayGenerator(Generator):
         self._generate_masks()
         self._generate_fh()
         self.dfh.evaluate_fields(N=10)
-        if not isinstance(self.probe_height, Iterable):
+        if not isinstance(self.probe_height, (list, np.ndarray)):
             pheight = [self.probe_height]
         else:
             pheight = self.probe_height

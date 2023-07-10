@@ -47,7 +47,7 @@ print("cuda available: ", torch.cuda.is_available())
 ## inspect the data
 
 # import the data generator 
-from singleton_python_objects import Quasi_ResNet
+from singleton_python_objects.NN_models_empty.Upsampling import get_model
 
 
 
@@ -179,12 +179,13 @@ def postprocessing(x):
 input_shape =   (2, 30, 30)
 output_shape =  (2, 11, 11)
 
-model = Quasi_ResNet.get_model(input_shape=input_shape, output_shape=output_shape)
+model = get_model(input_shape=input_shape, output_shape=output_shape)
 print(model.print_summary(device="cpu"))
 
 ## load mlflow model
 import mlflow.pytorch
-mlflow_model_path = r"/workspace/mlflow/378794452446859122/034225c1ea9f44b598cb1b57b9d16c31/artifacts/models"
+# mlflow_model_path = r"/workspace/mlflow/378794452446859122/034225c1ea9f44b598cb1b57b9d16c31/artifacts/models"
+mlflow_model_path = "/workspace/mlflow/378794452446859122/1259b37442ad4ca6be6bcac076adddb9/artifacts/models"
 mlflow_model = mlflow.pytorch.load_model(mlflow_model_path)
 
 

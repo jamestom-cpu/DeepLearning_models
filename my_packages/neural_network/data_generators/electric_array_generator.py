@@ -57,10 +57,7 @@ class RandomElectricDipoleGenerator(Generator):
         self.mask = np.stack(mask_layers, axis=0)
         self.N_dipoles = np.sum(self.mask)
         return self.mask
-    
-    def _generate_random_moments(self):
-        moments_r, moments_i = np.random.uniform(1/self.dynamic_range, 1, size=(2, self.N_dipoles))
-        return moments_r+1j*moments_i
+
     
     def _return_r0(self):
         """

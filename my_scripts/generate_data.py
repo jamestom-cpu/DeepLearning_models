@@ -15,7 +15,7 @@ from my_packages.neural_network.data_generators.mixed_array_generator import Mix
 from my_packages.neural_network.data_generators.iterator import DataIterator
 
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
-from my_packages.neural_network.data_generators.array_generators_mag_and_phase import ArrayGenerator_MagnitudesAndPhases
+from my_packages.neural_network.data_generators.array_generator_mag_and_phase import ArrayGenerator_MagnitudesAndPhases
 from my_packages.neural_network.data_generators.iterator import DataIterator
 
 # torch import 
@@ -47,7 +47,7 @@ dipole_density_E = 0.15
 dipole_density_H = 0.15
 include_dipole_position_uncertainty = True
 # data_dir = "/share/NN_data/high_res_with_noise"
-data_dir = "/ext_data/NN_data/11_res_noise/"
+data_dir = "/ext_data/NN_data/11_res_noise_MP_labels/"
 
 properties = {
     "resolution":resolution,
@@ -89,10 +89,28 @@ print("cell size is: {:.2f} x {:.2f} mm".format(rmg.cell_size[0]*1e3, rmg.cell_s
 
 data_iterator = DataIterator(rmg_dp)
 
+
+
+
 # inspect data
 random_fields, l = rmg_dp.generate_labeled_data()
-rmg.plot_labeled_data(random_fields, l)
+
+
+# rmg_dp.plot_target_phase(l)
+# plt.show()
+
+
+
+fig, ax = plt.subplots(3, 3, figsize=(15,5), constrained_layout=True)
+rmg_dp.plot_labeled_data(random_fields, l[0], ax=ax[0])
+rmg_dp.plot_target_magnitude(l, ax=ax[1])
+rmg_dp.plot_target_phase(l, ax=ax[2])
 plt.show()
+
+
+
+# rmg.plot_labeled_data(random_fields, l)
+# plt.show()
 
 
 # save the rmg dictionary to a json file
@@ -120,7 +138,7 @@ fields, lables = data_iterator.generate_N_data_samples(3)
 f, l = fields[0], lables[0]
 fig, ax = plt.subplots(len(probe_heights), 3, figsize=(15,5), constrained_layout=True)
 for ii in range(len(probe_heights)):
-    rmg.plot_labeled_data(f, l, savename="test_data", ax=ax[ii], index=ii)
+    rmg.plot_labeled_data(f, l[0], savename="test_data", ax=ax[ii], index=ii)
 fig.suptitle("test data - probe heights = {}".format(probe_heights))
 plt.show()
 
