@@ -22,7 +22,7 @@ os.chdir(PROJECT_CWD)
 # neuratl network imports
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
 from my_packages.neural_network.data_generators.iterator import DataIterator
-from my_packages.neural_network.model.model_trainer import Trainer
+from my_packages.neural_network.model.model_trainers.model_trainer import Trainer
 from my_packages.neural_network.model.model_base import Model_Base
 from my_packages.neural_network.predictor.predictor  import Predictor
 from my_packages.neural_network.aux_funcs.evaluation_funcs import f1_score_np
@@ -47,7 +47,7 @@ print("cuda available: ", torch.cuda.is_available())
 ## inspect the data
 
 # import the data generator 
-from singleton_python_objects.NN_models_empty.Upsampling import get_model
+from NN_model_architectures.PredictDipolePosition.ResNet import get_model
 
 
 
@@ -181,12 +181,36 @@ output_shape =  (2, 11, 11)
 
 model = get_model(input_shape=input_shape, output_shape=output_shape)
 print(model.print_summary(device="cpu"))
+mlflow_model_weights = "models/simple_electric/temp.pt"
+model.load_state_dict(torch.load(mlflow_model_weights, map_location=torch.device('cpu')))
 
+# # save the model state dict 
+# new_path = "model_weights/DipolePosition"
+# if not os.path.exists(new_path):
+#     os.makedirs(new_path)
+# filepath = os.path.join(new_path, "LargeResNet.pt")
+
+# filepath = "/workspace/mlflow/378794452446859122/ffe6bb4b8c3845ef937a32ccd390640f/artifacts/models"
+# delete the directory if it exists
+## OVERWRITE THE MLFLOW MODEL
+# import shutil
+# import mlflow.pytorch
+
+# def overwrite_mlflow_model(model, filepath):
+#     # Check if the path exists
+#     if os.path.exists(filepath):
+#         # If it exists, remove it (and all its content)
+#         shutil.rmtree(filepath)
+
+#     # Save the model
+#     mlflow.pytorch.save_model(model, filepath)
+
+# overwrite_mlflow_model(model, filepath)
 ## load mlflow model
 import mlflow.pytorch
-# mlflow_model_path = r"/workspace/mlflow/378794452446859122/034225c1ea9f44b598cb1b57b9d16c31/artifacts/models"
-mlflow_model_path = "/workspace/mlflow/378794452446859122/1259b37442ad4ca6be6bcac076adddb9/artifacts/models"
+mlflow_model_path = "/workspace/mlflow/378794452446859122/ffe6bb4b8c3845ef937a32ccd390640f/artifacts/models"
 mlflow_model = mlflow.pytorch.load_model(mlflow_model_path)
+
 
 
 predictor = Predictor(

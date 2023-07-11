@@ -26,7 +26,7 @@ os.environ["MLFLOW_TRACKING_URI"] = "mlflow"
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
 from my_packages.neural_network.data_generators.array_generator_mag_and_phase import ArrayGenerator_MagnitudesAndPhases
 from my_packages.neural_network.data_generators.iterator import DataIterator
-from my_packages.neural_network.model.model_trainer import Trainer
+from my_packages.neural_network.model.model_trainers.model_trainer import Trainer
 from my_packages.neural_network.model.model_base import Model_Base
 
 # torch import
@@ -54,7 +54,7 @@ from my_packages.neural_network.datasets_and_loaders.dataset_transformers_H impo
 from my_packages.neural_network.datasets_and_loaders.dataset_transformers_E import E_Components_Dataset
 
 from singleton_python_objects.mixed_array_generator import get_mixed_array_generator
-from singleton_python_objects.NN_models_empty.ResNet import get_model
+from NN_model_architectures.PredictDipolePosition.ResNet import get_model
 
 
 
@@ -179,7 +179,7 @@ model_dir = os.path.join(PROJECT_CWD, "models", "simple_electric")
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
 experiment_name = "t1_30x30 -> 11x11 _uncertain_pos"
-run_name = "large_ResNet1"
+run_name = "large_ResNet2"
 
 ## Train the Model
 # training parameters
