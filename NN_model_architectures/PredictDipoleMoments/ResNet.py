@@ -8,8 +8,6 @@ from my_packages.neural_network.model.model_base import Model_Base
 from ..NN_blocks import simple_conv_block, conv_block, linear_block
 
 
-
-
  
 class Quasi_ResNet(Model_Base):
     def __init__(

@@ -10,8 +10,7 @@ if __name__ == "__main__":
     sys.path.append(PROJECT_CWD)
 
 from my_packages.neural_network.model.model_base import Model_Base
-from singleton_python_objects.NN_models_empty.NN_blocks import simple_conv_block, conv_block, linear_block
-
+from ..NN_blocks import simple_conv_block, conv_block, linear_block
 
 
 
@@ -91,10 +90,10 @@ class Quasi_ResNet(Model_Base):
 ## hyperparameters
 
 # model structure
-conv_layer1 = 128
-conv_layer2 = 256
-conv_layer3 = 512
-fc_layer1 = 1024
+conv_layer1 = 64
+conv_layer2 = 128
+conv_layer3 = 256
+fc_layer1 = 126
 
 # training
 loss_fn = nn.BCEWithLogitsLoss()

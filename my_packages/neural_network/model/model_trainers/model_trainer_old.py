@@ -20,7 +20,7 @@ from ..aux_funcs_mlflow import clean_mlflow_metrics_efficient
 
 from .trainer_base import Trainer_Base
 
-class Trainer(Trainer_Base):
+class Trainer():
     def __init__(
             self, model, opt_func=torch.optim.SGD, 
             lr=0.01, patience=7, scheduler_kwargs={}, 
@@ -37,6 +37,7 @@ class Trainer(Trainer_Base):
             save_models_to_mlflow=True,
             _include_cleaning_of_mlflow_metrics=False,
             ):
+        
         
         self.print_every_n_epochs = print_every_n_epochs
         self.model = model
@@ -83,6 +84,17 @@ class Trainer(Trainer_Base):
             self._setup_mlflow_log()
         if self.log_tensorboard:
             self._setup_tensorboard_log()
+
+    # overwrite basic function
+    def _initialize_config_dict(self, parameters_of_interest, opt_func, patience, scheduler_kwargs):
+        self.config = dict(
+            lr=self.lr,
+            opt_func=opt_func.__name__,
+            patience=patience,
+            damping_factor=scheduler_kwargs.get('factor', None),
+        )
+
+        self.config.update(parameters_of_interest)
 
     def clean_mlflow_metrics(self):
         clean_mlflow_metrics_efficient(self.mlflow_dir)
@@ -133,11 +145,6 @@ class Trainer(Trainer_Base):
         loss.backward()
         self.optimizer.step()
 
-        # log statistics
-        # if self.log_mlflow:
-        #     # mlflow
-        #     self.log_gradient_statistics()
-        #     self.log_weights_statistics()
         if self.log_tensorboard:
             #tensorboard
             self._log_gradient_histogram_tensorboard()

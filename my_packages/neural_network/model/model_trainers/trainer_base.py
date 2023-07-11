@@ -13,13 +13,14 @@ import mlflow
 import mlflow.pytorch
 import numpy as np
 from my_packages.neural_network.model.early_stopping import EarlyStopping
+from my_packages.neural_network.model.model_base import Model_Base
 from my_packages.neural_network.gpu_aux import to_device
 from ..aux_funcs_mlflow import clean_mlflow_metrics_efficient
 
 class Trainer_Base(ABC):
     def __init__(
             self, 
-            model, 
+            model: Model_Base, 
             patience=3,
             model_dir="models", 
             log_mlflow=True,
@@ -35,7 +36,8 @@ class Trainer_Base(ABC):
             ):
         
         self.print_every_n_epochs = print_every_n_epochs
-        self.model = model
+        if not hasattr(self, "model"):
+            self.model = model
         self.history = []
         
         
@@ -49,7 +51,7 @@ class Trainer_Base(ABC):
 
 
         # initialize the config dictionary for hyperparameter tracking
-        self.config = self._initialize_config_dict(parameters_of_interest=parameters_of_interest)
+        self.config = self._initialize_config_dict(**parameters_of_interest)
 
 
         # setup mlflow logging
@@ -74,10 +76,13 @@ class Trainer_Base(ABC):
         if self.log_tensorboard:
             self._setup_tensorboard_log()
 
-    @abstractmethod
+
     def _initialize_config_dict(self, **kwargs)->dict:
         """Initializes the config dictionary that is tracked by mlflow and tensorboard"""
-        pass
+        if hasattr(self, "config"):
+            return self.config
+        else:
+            return kwargs
 
 
     def clean_mlflow_metrics(self):
@@ -161,23 +166,6 @@ class Trainer_Base(ABC):
             )
         return self
     
-    def _train_on_batch(self, batch):
-        """ 
-        Default Training Step: Simply overwrite this function in the child classes if needed
-        
-        """
-        loss = self.model.training_step(batch)
-        loss.backward()
-        self.optimizer.step()
-
-        # log gradient statistics
-        if self.log_tensorboard:
-            #tensorboard
-            self._log_gradient_histogram_tensorboard()
-            self._log_weights_histogram_tensorboard()
-        # clear gradients
-        self.optimizer.zero_grad() 
-        return loss
     
     def _prepare_for_training(self):
         # start by clearing the cuda memory

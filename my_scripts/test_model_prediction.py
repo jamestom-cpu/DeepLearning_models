@@ -20,7 +20,7 @@ os.chdir(PROJECT_CWD)
 
 from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
 from my_packages.neural_network.data_generators.iterator import DataIterator
-from my_packages.neural_network.model.model_trainers.model_trainer import Trainer
+from my_packages.neural_network.model.model_trainers.dipole_position_trainer import Trainer
 from my_packages.neural_network.model.model_base import Model_Base
 from my_packages.neural_network.predictor.predictor  import Predictor
 from my_packages.neural_network.aux_funcs.evaluation_funcs import f1_score_np
