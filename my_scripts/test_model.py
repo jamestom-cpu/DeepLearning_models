@@ -50,7 +50,7 @@ from torchsummary import summary
 
 from torch import nn
 import torch.nn.functional as F
-from my_packages.neural_network.datasets_and_loaders.dataset_transformers_H import H_Components_Dataset
+from my_packages.neural_network.datasets_and_loaders.dataset_transformers_multilayer import H_Components_Dataset_Multilayer
 from my_packages.neural_network.datasets_and_loaders.dataset_transformers_E import E_Components_Dataset
 
 from singleton_python_objects.mixed_array_generator import get_mixed_array_generator
@@ -59,21 +59,21 @@ from NN_model_architectures.PredictDipolePosition.ResNet import get_model
 
 
 # data_dir = "/share/NN_data/high_res_with_noise"
-data_dir = "/ext_data/NN_data/11_res_noise/"
-# data_dir = "/ext_data/NN_data/11_res_noise_MP_labels/"
+# data_dir = "/ext_data/NN_data/11_res_noise/"
+data_dir = "/ext_data/NN_data/11_res_noise_MP_labels/"
 
 # load the data properties
 json_file = os.path.join(data_dir, "data_properties.json")
 with open(json_file, "r") as f:
     properties = json.load(f)
 
-rmg = MixedArrayGenerator(**properties)
-# rmg_dp = ArrayGenerator_MagnitudesAndPhases(
-#     **properties,
-#     )
+# rmg = MixedArrayGenerator(**properties)
+rmg_dp = ArrayGenerator_MagnitudesAndPhases(
+    **properties,
+    )
 
 # rmg = get_mixed_array_generator()
-data_iterator = DataIterator(rmg)
+data_iterator = DataIterator(rmg_dp)
 
 
 fields,labels = data_iterator.generate_N_data_samples(10)
@@ -83,8 +83,8 @@ f, t = fields[0], labels[0]
 height_index = 0
 
 ds = TensorDataset(torch.from_numpy(fields), torch.from_numpy(labels))
-Eds = E_Components_Dataset(ds, probe_height_index=height_index).scale_to_01()
-Hds = H_Components_Dataset(ds, probe_height_index=height_index).scale_to_01()
+# Eds = E_Components_Dataset(ds, probe_height_index=height_index).scale_to_01()
+Hds = H_Components_Dataset_Multilayer(ds).scale_to_01()
 
 fH, lH = Hds[0]
 
@@ -166,8 +166,8 @@ train_dl = DeviceDataLoader(train_dataloader, device)
 val_dl = DeviceDataLoader(val_dataloader, device)
 
 ## build the model
-input_shape =   (2, 30, 30)
-output_shape =  (2, 11, 11)
+input_shape =   (4, 30, 30)
+output_shape =  (6, 11, 11)
 loss_fn = nn.BCEWithLogitsLoss()
 
 model = get_model(input_shape, output_shape)

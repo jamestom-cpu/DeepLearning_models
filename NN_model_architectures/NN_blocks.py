@@ -27,7 +27,12 @@ def upsample_block(in_channels, out_channels, scale):
         ]
     return nn.Sequential(*layers)
             
-def linear_block(in_channels, out_channels):
+def linear_block(in_channels, out_channels, activation=nn.ReLU()):
+    list_of_layers = [
+                nn.Linear(in_channels, out_channels)
+                ]
+    if activation is not None:
+         list_of_layers.append(activation)
     return nn.Sequential(
-            nn.Linear(in_channels, out_channels),
-            nn.ReLU())
+                *list_of_layers
+            )

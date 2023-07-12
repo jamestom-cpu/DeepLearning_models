@@ -51,11 +51,7 @@ class Trainer(Trainer_Base):
                          _include_cleaning_of_mlflow_metrics=_include_cleaning_of_mlflow_metrics
                          )
         
-        print("Trainer initialized")
-        
-        
-        
-        
+     
 
     def _define_config_dict_of_interest(
             self, opt_func, patience, scheduler_kwargs, 

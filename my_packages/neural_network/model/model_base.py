@@ -47,7 +47,10 @@ class Model_Base(nn.Module):
     
     def print_summary(self, in_shape, device = "cpu"):
         return summary(self, input_size=in_shape, device=device)
-
+    
+    def export_to_onnx(self, path):
+        dummy_input = torch.randn(1, *self.input_shape)
+        torch.onnx.export(self, dummy_input, path)
     
     @staticmethod
     def _accuracy(out, targets, thresh=0.5, apply_sigmoid=False):

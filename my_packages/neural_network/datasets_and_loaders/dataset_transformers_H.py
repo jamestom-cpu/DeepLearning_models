@@ -15,6 +15,11 @@ class H_Components_Dataset(Dataset):
         if probe_height_index is not None:
             self.dataset = Single_Probe_Height_View_Dataset(self.dataset, probe_height_index)
 
+    def add_transformation(self, func:callable):
+        self.transformation_list.append(
+            transforms.Lambda(func)
+        )
+        return self
 
     @staticmethod
     def trim_outer_rings_from_mask(input_tensor, k=1):

@@ -59,6 +59,9 @@ RUN conda env update --file environment.yml --prune
 
 RUN apt-get update && apt-get install -y supervisor
 
+RUN apt-get install -y graphviz
+
+
 # Set the default command to launch Jupyter Notebook
 ENTRYPOINT ["/usr/bin/tini", "--"]
 

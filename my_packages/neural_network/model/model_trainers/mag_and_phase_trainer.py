@@ -10,7 +10,7 @@ import mlflow.pytorch
 
 
 from .trainer_base import Trainer_Base
-from my_packages.neural_network.model.model_base import Model_Base
+from my_packages.neural_network.model.model_base_mag_phase import Model_Base
 
 class Trainer(Trainer_Base):
     def __init__(
@@ -79,8 +79,10 @@ class Trainer(Trainer_Base):
         self.optimizer = opt_func(self.model.parameters(), lr, **optimizer_kwargs)
 
     def _train_on_batch(self, batch):
-        loss = self.model.training_step(batch)
-        loss.backward()
+        binary_loss, magnitude_loss, phase_loss = self.model.training_step(batch)
+        # calculate the compounded loss
+        total_loss = self.model.compounded_loss_fn(binary_loss, magnitude_loss, phase_loss)
+        total_loss.backward()
         self.optimizer.step()
 
         # log gradient statistics
@@ -90,34 +92,52 @@ class Trainer(Trainer_Base):
             self._log_weights_histogram_tensorboard()
         # clear gradients
         self.optimizer.zero_grad() 
-        return loss.detach()
-
-
+        return binary_loss.detach(), magnitude_loss.detach(), phase_loss.detach()
+    
+    
     def fit(self, epochs, train_loader, val_loader):
         self._prepare_for_training()
         
         for epoch in range(epochs):
             self.epoch = epoch
+            # switch model to training mode
             self.model.train()
-            train_losses = []
+            # initialize the losses for the different components
+            train_losses_binary = []
+            train_losses_magnitude = []
+            train_losses_phase = []
+
+
             for batch in tqdm(train_loader):
-                loss = self._train_on_batch(batch)
-                train_losses.append(loss)
-                
+                binary_loss, magnitude_loss, phase_loss = self._train_on_batch(batch)
+                train_losses_binary.append(binary_loss)
+                train_losses_magnitude.append(magnitude_loss)
+                train_losses_phase.append(phase_loss)
+            
+
             result = self.model.evaluate(val_loader)
-            result['train_loss'] = torch.stack(train_losses).mean().item()
+            result['train_loss_binary'] = torch.stack(train_losses_binary).mean().item()
+            result['train_loss_magnitude'] = torch.stack(train_losses_magnitude).mean().item()
+            result['train_loss_phase'] = torch.stack(train_losses_phase).mean().item()
 
-            train_loss = torch.stack(train_losses).mean().item()
+            train_compounded_loss = self.model.compounded_loss_fn(
+                result['train_loss_binary'], 
+                result['train_loss_magnitude'], 
+                result['train_loss_phase'])
+            
+            result['train_loss'] = train_compounded_loss.item()
+            
             val_loss = result['val_loss']
-            val_acc = result['val_acc']
 
+            # take a step with the scheduler
             self.scheduler.step(val_loss)
             
-            self._log_history(train_loss, val_loss, val_acc)
+
+            self._log_history(result)
             if self.log_mlflow:
-                self._log_metrics_mlflow(epoch, **self.history[-1])   
+                self._log_metrics_mlflow(epoch, **result)   
             if self.log_tensorboard:
-                self._log_history_tensorboard(train_loss, val_loss, val_acc, epoch)
+                self._log_history_tensorboard(epoch, **result)
 
             if (epoch) % self.print_every_n_epochs == 0:
                 self.model.epoch_end(epoch, result)
@@ -128,16 +148,19 @@ class Trainer(Trainer_Base):
                 print("Early stopping")
                 self.model.load_state_dict(torch.load(self.early_stopping_checkpoint_path))
                 break
-        
-        if self.log_mlflow:
-            print("Close mlflow session")
-            if self.save_models_to_mlflow:
-                mlflow.pytorch.log_model(self.model, "models")
+    
+    def _log_history(self, result):
+        self.history.append(result)
+    
+    
+    def _log_metrics_mlflow(self, epoch, **metrics):
+        if not all([isinstance(x, float) for x in metrics.values()]):
             mlflow.end_run()
-        
-        if self.log_tensorboard:
-            print("Close tensorboard session")
-            self.writer.close()
-        
-        print("Training finished")
-        return self.history
+            raise ValueError("Metrics must be floats")
+        metrics_with_step = {name: value for name, value in metrics.items()}
+        mlflow.log_metrics(metrics_with_step, step=epoch)
+
+
+
+
+    

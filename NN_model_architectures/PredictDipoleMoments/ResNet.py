@@ -91,11 +91,11 @@ class Quasi_ResNet(Model_Base):
         binary_out = binary_out.view(out.size(0), self.output_shape[0], self.output_shape[1], self.output_shape[2])
         
         # regression output
-        regression_out = self.regression_output(out)
+        regression_out = F.relu(self.regression_output(out))
         regression_out = regression_out.view(out.size(0), self.output_shape[0], self.output_shape[1], self.output_shape[2])
 
         # phase output
-        phase_out = self.phase_output(out)
+        phase_out = F.relu(self.phase_output(out))
         phase_out = phase_out.view(out.size(0), self.output_shape[0], self.output_shape[1], self.output_shape[2])
 
         return binary_out, regression_out, phase_out
