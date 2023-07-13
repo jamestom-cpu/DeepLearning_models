@@ -5,8 +5,10 @@ from .dataset_transformers_general import Single_Probe_Height_View_Dataset
 
 
 class H_Components_Dataset_Multilayer(Dataset):
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, height_indices=None):
         self.dataset = dataset
+        
+
         self.transformation_list = [
             transforms.Lambda(lambda x: x[-2:]),
         ]
@@ -14,7 +16,27 @@ class H_Components_Dataset_Multilayer(Dataset):
             transforms.Lambda(lambda x: x[:, -2:]),
         ]
 
+        if height_indices is not None:
+            self.select_probe_heights(height_indices)
+
         print("finished initializing")
+
+    def select_probe_heights(self, indices):
+        self.transformation_list.append(
+            transforms.Lambda(
+                lambda x: x[:, indices]
+            )
+        )
+        return self
+    
+    def view_with_shape(self, shape):
+        self.transformation_list.append(
+            transforms.Lambda(
+                lambda x: x.view(shape)
+            )
+        )
+        return self
+    
     
     @staticmethod
     def rescaling_func_data(data_input):
@@ -42,6 +64,7 @@ class H_Components_Dataset_Multilayer(Dataset):
         sin_phase[mask] = torch.sin(phase[mask])
         cos_phase[mask] = torch.cos(phase[mask])
         return torch.stack([binary, label_input[1], sin_phase, cos_phase], dim=0)
+    
 
     def rescale_probe_heights(self):
         self.transformation_list.append(
