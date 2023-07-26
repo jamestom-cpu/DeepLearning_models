@@ -1,86 +1,82 @@
-import numpy as np
-from typing import Iterable, Tuple
 import os, sys
-import torch.nn.functional as F
+import numpy as np
+import matplotlib.pyplot as plt
+
 import torch
 
-main_workspace_path = "/workspace"
-sys.path.append(main_workspace_path)
-
-
+from .aux_datapoints_plotting import plotting_func, H_plotting_func, E_plotting_func, input_data_to_Scan
 from my_packages.classes.aux_classes import Grid
-from my_packages.classes.dipole_array import FlatDipoleArray
-from my_packages.classes.dipole_fields import DFHandler_over_Substrate
-from my_packages.classes.model_components import UniformEMSpace, Substrate
-from my_packages.classes.field_classes import Scan
-
-from my_packages.neural_network.data_generators.magnetic_array_generator import RandomMagneticDipoleGenerator
-from my_packages.neural_network.data_generators.electric_array_generator import RandomElectricDipoleGenerator
-from my_packages.neural_network.data_generators.abstract import Generator
-from my_packages.neural_network.data_generators.mixed_array_generator import MixedArrayGenerator
-
-import matplotlib.pyplot as plt
-# import matplotlib.colors as mcolors
 
 
+class Plotter():
+    def __init__(self, grid, label_grid = None, f=1e9, resolution = (11, 11)):
+        self.grid = grid
+        self.f = f
 
-class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
-
-    def _return_target_moments_and_phases(self, complex_moments):
-        M = np.abs(complex_moments); ph = np.angle(complex_moments)
-        return M, ph
+        if label_grid is None:
+            self.label_grid = self._generate_r0_grid(resolution)
+        else:
+            self.label_grid = label_grid
     
-    def return_moments_and_phases(self):
-        mom_h = self.dfh.magnetic_array.M
-        mom_e = self.dfh.electric_array.M
+    def _generate_r0_grid(self):
+        """
+        grid: Grid object
+        cellgrid_shape: tuple of (n, m) where n and m are integers
+        """   
 
-        M_e, ph_e = self._return_target_moments_and_phases(mom_e)
-        M_h, ph_h = self._return_target_moments_and_phases(mom_h)
+        x = np.linspace(self.xbounds[0], self.xbounds[1], self.resolution[0]+1) 
+        x = np.diff(x)/2 + x[:-1]
+
+        y = np.linspace(self.ybounds[0], self.ybounds[1], self.resolution[1]+1)
+        y = np.diff(y)/2 + y[:-1]
+
+        return Grid(np.meshgrid(x, y, [self.dipole_height], indexing="ij"))
+  
+    
+
+    def _plot_labeled_data(self, fields, label, index=0, ax=None, FIGSIZE=(15,3)):        
+        if isinstance(label, np.ndarray):
+            label = torch.from_numpy(label)
+        # return to numpy
+        label = label.numpy()
         
-        Me_target = self.electric_generator._moments_on_grid(M_e)
-        phase_e_target = self.electric_generator._moments_on_grid(ph_e)
-
-        Mh_target = self.magnetic_generator._moments_on_grid(M_h)
-        phase_h_target = self.magnetic_generator._moments_on_grid(ph_h)
-
-        return Me_target, Mh_target, phase_e_target, phase_h_target
-    
-    def save_target_magnitudes_and_phases(self):
-        self.Me, self.Mh, self.ph_e, self.ph_h = self.return_moments_and_phases()
-
-    @property
-    def target_M(self):
-        return np.concatenate((self.Me, self.Mh), axis=0)
-    
-    @property
-    def target_phases(self):
-        return np.concatenate((self.ph_e, self.ph_h), axis=0)
-
-    def generate_labeled_data(self, index=None):
-        Ez, Hx, Hy = self.generate_random_fields()
-        self.save_target_magnitudes_and_phases()    
+        Ez, Hx, Hy = input_data_to_Scan(fields, self.grid, freq=self.f)
+        x, y = self.label_grid[:-1, ..., 0]
+        plotting_func(Ez[index], Hx[index], Hy[index], x, y, label, ax=ax, FIGSIZE=FIGSIZE)
         
-        Ez = self._list_of_scans_to_list_of_numpys(Ez)
-        Hx = self._list_of_scans_to_list_of_numpys(Hx)
-        Hy = self._list_of_scans_to_list_of_numpys(Hy)
+        
 
-        fields = np.stack((Ez, Hx, Hy), axis=0)
-        if index is not None:
-            fields = fields[:, index, ...]
+    def plot_Hlabeled_data(self, fields, label, index=0, ax=None, FIGSIZE=(15,3)):
+        if isinstance(label, np.ndarray):
+            label = torch.from_numpy(label)
 
-        targets = np.stack([self.mask, self.target_M, self.target_phases], axis=0)
-        return fields, targets
-    
-    def plot_labeled_data(self, fields, targets, index=0, mask_padding=0, ax=None, FIGSIZE=(15,3), image_folder="/workspace/images", savename="temp.png"):
-        if np.ndim(targets)==4: 
-            targets = targets[0]
-        nfields = fields.shape[0]
-        if nfields == 3:
-            return super().plot_labeled_data(fields, targets, index, mask_padding, ax, FIGSIZE, image_folder, savename) 
-        if nfields == 2: 
-            return super().plot_Hlabeled_data(fields, targets, index, mask_padding, ax, FIGSIZE, image_folder, savename)
+        label = label.numpy()
 
-    def plot(self, fields, targets, index=None, ax=None, normalized_phase=False):
+        if np.ndim(fields) == 3:
+            fields = np.expand_dims(fields, axis=1)
+
+        _, Hx, Hy = input_data_to_Scan(fields, self.grid, freq=self.f)
+        x, y = self.label_grid[:-1, ..., 0]
+
+        H_plotting_func(Hx[index], Hy[index], x, y, label, ax=ax, FIGSIZE=FIGSIZE)
+
+
+    def plot_Elabeled_data(self, fields, label, index=0, ax=None, FIGSIZE=(15,3)):     
+        Ez, _, _ = input_data_to_Scan(fields, self.grid, freq=self.f)
+        x, y = self.label_grid[:-1, ..., 0]
+        E_plotting_func(Ez[index], x, y, label, ax=ax, FIGSIZE=FIGSIZE)
+
+
+    def plot_labeled_data(self, fields, targets, index=0, ax=None, FIGSIZE=(15,3), image_folder="/workspace/images", savename="temp.png"):
+            if np.ndim(targets)==4: 
+                targets = targets[0]
+            nfields = fields.shape[0]
+            if nfields == 3:
+                return self._plot_labeled_data(fields, targets, index, ax, FIGSIZE) 
+            if nfields == 2: 
+                return self.plot_Hlabeled_data(fields, targets, index, ax, FIGSIZE)
+
+    def plot_all(self, fields, targets, index=None, ax=None, normalized_phase=False):
         nlayers = targets.shape[0]
         nfields = targets.shape[1]
         if ax is None:
@@ -88,10 +84,11 @@ class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
         else: 
             fig = ax.flatten()[0].get_figure()    
         self.plot_labeled_data(fields, targets[0], ax=ax[0], index=index)
+        
         self.plot_target_magnitude(targets, ax=ax[1])
         self.plot_target_phase(targets, ax=ax[2:], normalized01=normalized_phase)
         return fig, ax
-    
+
 
     def plot_target_magnitude(self, targets, ax=None):
         targets = np.asarray(targets)
@@ -101,7 +98,7 @@ class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
         else:
             fig = ax.flatten()[0].get_figure()
         abs_moments = targets[1]
-        grid_x, grid_y = self.r0_grid[:2, ..., 0]
+        grid_x, grid_y = self.label_grid[:2, ..., 0]
 
         if nfields==3:
             titles = ["Ez", "Hx", "Hy"]
@@ -139,7 +136,7 @@ class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
         sin_phase_values = np.where(mask==0, np.nan, sin_phase_values)  # Mask values
         cos_phase_values = np.where(mask==0, np.nan, cos_phase_values)  # Mask values
 
-        grid_x, grid_y = self.r0_grid[:2, ..., 0]
+        grid_x, grid_y = self.label_grid[:2, ..., 0]
         if nfields==3:
             titles = ["Ez Phase", "Hx Phase", "Hy Phase"]
         elif nfields==2:
@@ -166,9 +163,9 @@ class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
         for ii in range(2*nfields):
             ax.flatten()[ii].set_xlabel("x (mm)")
             ax.flatten()[ii].set_ylabel("y (mm)")
-            
-            
         
+        
+    
     def plot_target_phase(self, targets, ax=None, normalized01=False):
         targets = np.asarray(targets)
 
@@ -181,7 +178,7 @@ class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
         else:
             fig = ax.flatten()[0].get_figure()
         phase_values = targets[2]
-        grid_x, grid_y = self.r0_grid[:2, ..., 0]
+        grid_x, grid_y = self.label_grid[:2, ..., 0]
         if nfields==3:
             titles = ["Ez Phase", "Hx Phase", "Hy Phase"]
         elif nfields==2:
@@ -206,10 +203,4 @@ class ArrayGenerator_MagnitudesAndPhases(MixedArrayGenerator):
             cbar.set_ticks(ticks)
             cbar.set_ticklabels(tick_labels)
 
-
         
-
-        
-
-
-
