@@ -22,6 +22,8 @@ class H_Components_Dataset_Multilayer(Dataset):
         print("finished initializing")
 
     def select_probe_heights(self, indices):
+        if isinstance(indices, int):
+            indices = [indices]
         self.transformation_list.append(
             transforms.Lambda(
                 lambda x: x[:, indices]
@@ -91,6 +93,13 @@ class H_Components_Dataset_Multilayer(Dataset):
         self.label_transformation_list.append(
             transforms.Lambda(
             lambda x: self.phase_to_sin_and_cos(x)
+            ))
+        return self
+    
+    def ignore_phase(self):
+        self.label_transformation_list.append(
+            transforms.Lambda(
+            lambda x: x[:2]
             ))
         return self
 

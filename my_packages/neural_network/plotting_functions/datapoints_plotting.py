@@ -9,28 +9,32 @@ from my_packages.classes.aux_classes import Grid
 
 
 class Plotter():
-    def __init__(self, grid, label_grid = None, f=1e9, resolution = (11, 11)):
+    def __init__(self, grid, label_grid = None, f=1e9):
         self.grid = grid
         self.f = f
-
-        if label_grid is None:
-            self.label_grid = self._generate_r0_grid(resolution)
-        else:
-            self.label_grid = label_grid
+        self.label_grid = label_grid
     
-    def _generate_r0_grid(self):
+    @staticmethod
+    def initialize_from_res(grid, resolution, dipole_height=None, f=1e9):
+        label_grid = Plotter._generate_r0_grid(grid, resolution, dipole_height)
+        return Plotter(grid, label_grid, f=f)
+    
+    @staticmethod
+    def _generate_r0_grid(grid: Grid, resolution, dipole_height=1e-3):
         """
         grid: Grid object
         cellgrid_shape: tuple of (n, m) where n and m are integers
         """   
 
-        x = np.linspace(self.xbounds[0], self.xbounds[1], self.resolution[0]+1) 
+        xbounds, ybounds = grid.bounds()[:2]
+
+        x = np.linspace(xbounds[0], xbounds[1], resolution[0]+1) 
         x = np.diff(x)/2 + x[:-1]
 
-        y = np.linspace(self.ybounds[0], self.ybounds[1], self.resolution[1]+1)
+        y = np.linspace(ybounds[0], ybounds[1], resolution[1]+1)
         y = np.diff(y)/2 + y[:-1]
 
-        return Grid(np.meshgrid(x, y, [self.dipole_height], indexing="ij"))
+        return Grid(np.meshgrid(x, y, [dipole_height], indexing="ij"))
   
     
 
@@ -80,7 +84,7 @@ class Plotter():
         nlayers = targets.shape[0]
         nfields = targets.shape[1]
         if ax is None:
-            fig, ax = plt.subplots(nlayers, nfields, figsize=(15,5), constrained_layout=True) 
+            fig, ax = plt.subplots(nlayers, nfields, figsize=(10,10), constrained_layout=True) 
         else: 
             fig = ax.flatten()[0].get_figure()    
         self.plot_labeled_data(fields, targets[0], ax=ax[0], index=index)
@@ -88,6 +92,17 @@ class Plotter():
         self.plot_target_magnitude(targets, ax=ax[1])
         self.plot_target_phase(targets, ax=ax[2:], normalized01=normalized_phase)
         return fig, ax
+    
+    def plot_fields_and_magnitude(self, fields, targets, index=0, ax=None):
+        nlayers = targets.shape[0]
+        nfields = targets.shape[1]
+        if ax is None:
+            fig, ax = plt.subplots(2, nfields, figsize=(10,5), constrained_layout=True) 
+        else: 
+            fig = ax.flatten()[0].get_figure()    
+        self.plot_labeled_data(fields, targets[0], ax=ax[0], index=index)   
+        self.plot_target_magnitude(targets, ax=ax[1])
+
 
 
     def plot_target_magnitude(self, targets, ax=None):
