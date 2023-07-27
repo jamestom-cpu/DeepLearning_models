@@ -1,13 +1,18 @@
+import os
+
 import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 from .dataset_transformers_general import Single_Probe_Height_View_Dataset
+from .custom_dataset import LowMemDataset
 
 
 class H_Components_Dataset_Multilayer(Dataset):
-    def __init__(self, dataset: Dataset, height_indices=None):
-        self.dataset = dataset
-        
+    def __init__(self, filepath: str, height_indices=None):
+        if os.path.isdir(filepath):
+            self.dataset = LowMemDataset(filepath)    
+        elif os.path.isfile(filepath):
+            self.dataset = torch.load(filepath) 
 
         self.transformation_list = [
             transforms.Lambda(lambda x: x[-2:]),
