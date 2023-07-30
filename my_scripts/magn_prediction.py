@@ -240,20 +240,44 @@ class myModel(Model_Base):
         magnitude_prediction = self.magntiude_head(conv_output, binary_labels)
         return binary_prediction, magnitude_prediction
 
-    def training_step_dipole_position(self, batch):
-        inputs, targets = batch
-        binary_target = targets[0]
-        binary_pred, _ = self(inputs)
-        loss = self.loss_fn(binary_pred, binary_target)
-        return loss
-    
-    def validation_step(self, batch):
+    def training_step_dipole_position(self, batch, loss_fn):
         inputs, targets = batch
         binary_target = targets[:, 0]
         binary_pred, _ = self(inputs)
-        loss = self.loss_fn(binary_pred, binary_target)
+        loss = loss_fn(binary_pred, binary_target)
+        return loss
+    
+    def training_step_dipole_magnitude(self, batch, loss_fn):
+        inputs, targets = batch
+        magnitude_targets = targets[:, 1]
+        _, magnitude_pred = self(inputs)
+        loss = loss_fn(magnitude_pred, magnitude_targets)
+        return loss
+    
+    def validation_step_binary(self, batch, loss_fn):
+        inputs, targets = batch
+        binary_target = targets[:, 0]
+        binary_pred, _ = self(inputs)
+        loss = loss_fn(binary_pred, binary_target)
         accuracy = self._accuracy(binary_pred, binary_target, apply_sigmoid=True)
-        return {'val_loss': loss.detach(), 'val_acc': accuracy}    
+        return {'val_loss': loss.detach(), 'val_acc': accuracy}  
+
+    def validation_step_magnitude(self, batch, loss_fn):
+        inputs, targets = batch
+        magnitude_targets = targets[:, 1]
+        _, magnitude_pred = self(inputs)
+        loss = loss_fn(magnitude_pred, magnitude_targets)
+        return {'val_loss': loss.detach(), 'val_acc': torch.tensor(0.0)}
+
+    def evaluate_binary(self, val_loader, loss_fn):
+        self.eval()
+        outputs = [self.validation_step_binary(batch, loss_fn) for batch in val_loader]
+        return self.validation_epoch_end(outputs)
+    
+    def evaluate_magnitude(self, val_loader, loss_fn):
+        self.eval()
+        outputs = [self.validation_step_magnitude(batch, loss_fn) for batch in val_loader]
+        return self.validation_epoch_end(outputs)
     
     
 input_shape = (4,30,30)
@@ -279,8 +303,10 @@ from my_packages.neural_network.model.model_trainers.trainer_base import Trainer
 class Trainer(Trainer_Base):
     def __init__(
             self, 
-            model: Model_Base, 
+            model: myModel, 
             opt_func=torch.optim.SGD, 
+            loss_fn_binary=nn.BCEWithLogitsLoss(),
+            loss_fn_magnitude=nn.MSELoss(),
             lr=0.01, patience=7, 
             scheduler_kwargs={}, 
             optimizer_kwargs={},
@@ -296,6 +322,11 @@ class Trainer(Trainer_Base):
             save_models_to_mlflow=True,
             _include_cleaning_of_mlflow_metrics=False,):
         
+        # initialize the loss functions
+        self.loss_fn_binary = loss_fn_binary
+        self.loss_fn_magnitude = loss_fn_magnitude
+
+        # initialize the optimizer
         self.lr = lr
         self.model = model
         self._init_optimizer(opt_func, lr, **optimizer_kwargs)
@@ -338,8 +369,8 @@ class Trainer(Trainer_Base):
     def _init_optimizer(self, opt_func: Callable, lr, **optimizer_kwargs):
         self.optimizer = opt_func(self.model.parameters(), lr, **optimizer_kwargs)
 
-    def _train_on_batch(self, batch):
-        loss = self.model.training_step(batch)
+    def _train_on_batch_binary(self, batch):
+        loss = self.model.training_step_dipole_position(batch, self.loss_fn_binary)
         loss.backward()
         self.optimizer.step()
 
@@ -351,9 +382,26 @@ class Trainer(Trainer_Base):
         # clear gradients
         self.optimizer.zero_grad() 
         return loss.detach()
+    
+    def _train_on_batch_magnitude(self, batch):
+        loss = self.model.training_step_dipole_magnitude(batch, self.loss_fn_magnitude)
+
+        # clear gradients
+        self.optimizer.zero_grad()
+
+        # compute gradients
+        loss.backward()
+        self.optimizer.step()
+
+        # log gradient statistics
+        if self.log_tensorboard:
+            #tensorboard
+            self._log_gradient_histogram_tensorboard()
+            self._log_weights_histogram_tensorboard()        
+        return loss.detach()
 
 
-    def fit(self, epochs, train_loader, val_loader):
+    def fit_binary(self, epochs, train_loader, val_loader):
         self._prepare_for_training()
         
         for epoch in range(epochs):
@@ -361,10 +409,10 @@ class Trainer(Trainer_Base):
             self.model.train()
             train_losses = []
             for batch in tqdm(train_loader):
-                loss = self._train_on_batch(batch)
+                loss = self._train_on_batch_binary(batch)
                 train_losses.append(loss)
                 
-            result = self.model.evaluate(val_loader)
+            result = self.model.evaluate_binary(val_loader, self.loss_fn_binary)
             result['train_loss'] = torch.stack(train_losses).mean().item()
 
             train_loss = torch.stack(train_losses).mean().item()
@@ -402,6 +450,77 @@ class Trainer(Trainer_Base):
         print("Training finished")
         return self.history
     
+    def fit_magnitude(self, epochs, train_loader, val_loader):
+        self._prepare_for_training()
+        
+        for epoch in range(epochs):
+            self.epoch = epoch
+            self.model.train()
+            train_losses = []
+            for batch in tqdm(train_loader):
+                loss = self._train_on_batch_magnitude(batch)
+                train_losses.append(loss)
+                
+            result = self.model.evaluate_magnitude(val_loader, self.loss_fn_magnitude)
+            result['train_loss'] = torch.stack(train_losses).mean().item()
+
+            train_loss = torch.stack(train_losses).mean().item()
+            val_loss = result['val_loss']
+            val_acc = result['val_acc']
+
+            self.scheduler.step(val_loss)
+            
+            self._log_history(train_loss, val_loss, val_acc)
+            if self.log_mlflow:
+                self._log_metrics_mlflow(epoch, **self.history[-1])   
+            if self.log_tensorboard:
+                self._log_history_tensorboard(train_loss, val_loss, val_acc, epoch)
+
+            if (epoch) % self.print_every_n_epochs == 0:
+                self.model.epoch_end(epoch, result)
+
+            self.early_stopping(val_loss, self.model)
+
+            if self.early_stopping.early_stop:
+                print("Early stopping")
+                self.model.load_state_dict(torch.load(self.early_stopping_checkpoint_path))
+                break
+        
+        if self.log_mlflow:
+            print("Close mlflow session")
+            if self.save_models_to_mlflow:
+                mlflow.pytorch.log_model(self.model, "models")
+            mlflow.end_run()
+        
+        if self.log_tensorboard:
+            print("Close tensorboard session")
+            self.writer.close()
+        
+        print("Training finished")
+        return self.history
+    
+    def unfreeze_all_model(self, reinitialize_early_stopping=True):
+        for param in self.model.parameters():
+            param.requires_grad = True
+        self.optimizer = opt_func(self.model.parameters(), self.lr)
+        if reinitialize_early_stopping:
+            self._init_early_stopping(patience=self.patience)
+    
+    def switch_to_magnitude(self):
+        self._init_early_stopping(patience=self.patience)
+        # Freeze the convolutional base
+        for param in self.model.conv_base.parameters():
+            param.requires_grad = False
+        # Unfreeze the magnitude head
+        for param in self.model.magntiude_head.parameters():
+            param.requires_grad = True
+
+        # Reinitialize the optimizer
+        self.optimizer = opt_func(self.model.magntiude_head.parameters(), self.lr)
+    
+    def fit(self, epochs, train_loader, val_loader):
+        print("fitting func...")
+    
 #%% Define DataLoaders
 # create the dataloaders
 train_size = int(0.8 * len(Hds))
@@ -413,7 +532,8 @@ val_dl = DataLoader(val_dataset, batch_size=32, num_workers=4, pin_memory=True)
 
 #%% Train the model
 # params
-loss_fn = nn.BCEWithLogitsLoss()
+loss_fn_binary = nn.BCEWithLogitsLoss()
+loss_fn_magnitude = nn.MSELoss()
 # model dir
 model_dir = os.path.join(PROJECT_CWD, "models", "simple_electric")
 if not os.path.exists(model_dir):
@@ -433,6 +553,7 @@ weight_decay= 1e-6
 
 trainer = Trainer(
     model, opt_func=opt_func,
+    loss_fn_binary=loss_fn_binary, loss_fn_magnitude=loss_fn_magnitude,
     lr=lr, patience=patience,
     optimizer_kwargs={"weight_decay":weight_decay},
     scheduler_kwargs={'mode':'min', 'factor':lr_dampling_factor, 'patience':lr_patience,
@@ -450,4 +571,59 @@ model = to_device(model, device)
 train_dl = DeviceDataLoader(train_dl, device)
 val_dl = DeviceDataLoader(val_dl, device)
 
-print("evaluation before training: ", model.evaluate(val_dl))
+print("evaluation before training: ", model.evaluate_binary(val_dl, loss_fn_binary))
+print("evaluation before training: ", model.evaluate_magnitude(val_dl, loss_fn_magnitude))
+
+trainer.fit_binary(10, train_dl, val_dl)
+trainer.switch_to_magnitude()
+trainer.fit_magnitude(10, train_dl, val_dl)
+trainer.lr = 0.0001
+trainer.unfreeze_all_model()
+trainer.fit_magnitude(10, train_dl, val_dl)
+
+# save the model
+
+model_dir = "models/multi_task"
+model_name = "multi_task_model_1.pt"
+
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+
+model_path = os.path.join(model_dir, model_name)
+torch.save(model.state_dict(), model_path)
+
+
+# #%% Evaluate the model
+
+# class DipolePredictor:
+#     def __init__(self, model):
+#         self.model = model
+
+#     def predict_binary(self, input_data):
+#         # Reshaping the input data to (4, 30, 30)
+#         input_data = input_data.reshape(-1, 4, 30, 30)
+#         self.model.eval()
+#         with torch.no_grad():
+#             binary_prediction, _ = self.model(torch.Tensor(input_data).to(self.model.device))
+#             binary_prediction = torch.sigmoid(binary_prediction)
+#         return binary_prediction.cpu().numpy()
+
+#     def predict_magnitude_with_label(self, input_data, binary_labels):
+#         # Reshaping the input data to (4, 30, 30)
+#         input_data = input_data.reshape(-1, 4, 30, 30)
+#         self.model.eval()
+#         with torch.no_grad():
+#             _, magnitude_prediction = self.model(torch.Tensor(input_data).to(self.model.device), torch.Tensor(binary_labels).to(self.model.device))
+#         return magnitude_prediction.cpu().numpy()
+
+#     def predict_magnitude(self, input_data):
+#         binary_predictions = self.predict_binary(input_data)
+#         magnitude_predictions = self.predict_magnitude_with_label(input_data, binary_predictions)
+#         return magnitude_predictions
+    
+
+# predictor = DipolePredictor(model)
+# # Assume input_data is your input with shape (2, 2, 30, 30)
+# binary_predictions = predictor.predict_binary(input_data)
+# magnitude_predictions_with_label = predictor.predict_magnitude_with_label(input_data, binary_labels)
+# magnitude_predictions = predictor.predict_magnitude(input_data)

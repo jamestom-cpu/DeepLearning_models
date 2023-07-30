@@ -13,7 +13,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # install tkinter
 RUN apt-get update && apt-get install -y \
     tk \
-    libx11-dev
+    libx11-dev \
+    libxext-dev \
+    libxss-dev \
+    libxft-dev \
+    libx11-xcb-dev
 
 # allow screen sharing
 RUN apt-get update && apt-get install -y xorg
@@ -32,8 +36,7 @@ ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /usr/
 RUN chmod +x /usr/bin/tini
 
 
-RUN pip install --upgrade jupyter_http_over_ws>=0.0.7 && jupyter serverextension enable --py jupyter_http_over_ws
-
+RUN pip install --upgrade jupyter_http_over_ws>=0.0.7
 # build folders
 RUN mkdir /workspace/mlflow
 RUN mkdir /workspace/tensorboard

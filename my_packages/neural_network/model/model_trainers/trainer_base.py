@@ -34,7 +34,7 @@ class Trainer_Base(ABC):
             save_models_to_mlflow=True,
             _include_cleaning_of_mlflow_metrics=False,
             ):
-        
+        self.patience = patience
         self.print_every_n_epochs = print_every_n_epochs
         if not hasattr(self, "model"):
             self.model = model
