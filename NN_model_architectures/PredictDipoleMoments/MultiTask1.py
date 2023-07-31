@@ -1,5 +1,5 @@
 import numpy as np
-# %% Define Model Type
+## Define Model Type
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,6 +10,42 @@ from NN_model_architectures.NN_blocks import simple_conv_block, conv_block, line
 
 from torchsummary import summary
 from torchviz import make_dot
+
+class SmallConv_Base(nn.Module):
+    def __init__(
+            self, 
+            input_shape,
+            output_shape,
+            conv_size1=64,
+            conv_size2=128,
+    ):
+        super(SmallConv_Base, self).__init__()
+        self.input_shape = input_shape
+        self.output_shape = output_shape
+        self.n_layers = self.input_shape[0]
+        self.out_size = np.prod(output_shape)
+
+        self.conv1 = simple_conv_block(self.n_layers, conv_size1)
+        self.res1 = conv_block(conv_size1, n=2)
+
+        self.conv2 = nn.Sequential(
+            simple_conv_block(conv_size1, conv_size2),
+            nn.MaxPool2d(2)
+            )
+        
+        self.res2 = conv_block(conv_size2, n=2)
+        self.global_pool = nn.Sequential(
+            simple_conv_block(conv_size2, output_shape),
+            nn.AdaptiveMaxPool2d((1,1))
+            )
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.res1(x) + x
+        x = self.conv2(x)
+        x = self.res2(x) + x
+        x = self.global_pool(x)
+        return x.view(x.shape[0], -1)
 
  
 class Convolutional_Base(nn.Module):
@@ -83,7 +119,7 @@ class DipoleMagnitudePredictionHead(nn.Module):
         self.binary_output_size = np.prod(binary_output_shape)
 
         self.dropout3 = nn.Dropout(0.05)
-        self.fc1 = linear_block(self.binary_output_size + 256, 512) # Modify here
+        self.fc1 = linear_block(self.binary_output_size + input_shape, 512) # Modify here
         self.dropout4 = nn.Dropout(0.05)
         self.fc2 = linear_block(512, 512)
         self.dropout5 = nn.Dropout(0.05)

@@ -107,12 +107,19 @@ class Plotter():
 
     def plot_target_magnitude(self, targets, ax=None):
         targets = np.asarray(targets)
-        nfields = targets.shape[1]
+        if len(targets.shape)==4:
+            nfields = targets.shape[1]
+            abs_moments = targets[1]
+
+        elif len(targets.shape)==3:
+            nfields = targets.shape[0]
+            abs_moments = targets
+        
         if ax is None:
             fig, ax = plt.subplots(1, nfields, figsize=(10,3), constrained_layout=True)
         else:
             fig = ax.flatten()[0].get_figure()
-        abs_moments = targets[1]
+        
         grid_x, grid_y = self.label_grid[:2, ..., 0]
 
         if nfields==3:

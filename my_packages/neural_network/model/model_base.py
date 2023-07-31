@@ -12,6 +12,10 @@ class Model_Base(nn.Module):
         self.loss_fn = loss_fn
         self.apply_sigmoid_to_accuracy = apply_sigmoid_to_accuracy
 
+    @property
+    def device(self):
+        # Return the device of the first parameter of the model
+        return next(self.parameters()).device
 
     def training_step(self, batch):
         inputs, targets = batch
